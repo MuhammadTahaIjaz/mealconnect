@@ -3,15 +3,48 @@ import 'package:get/get.dart';
 import '../../../app/theme/app_colors.dart';
 import '../controllers/auth_controller.dart';
 
-class LoginScreen extends GetView<AuthController> {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
-    final isSignUp = false.obs;
+  State<LoginScreen> createState() => _LoginScreenState();
+}
 
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _passwordFocus = FocusNode();
+  final _isSignUp = false.obs;
+
+  late final AuthController _auth;
+
+  @override
+  void initState() {
+    super.initState();
+    _auth = Get.find<AuthController>();
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _passwordFocus.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_auth.isLoading.value) return;
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    if (_isSignUp.value) {
+      _auth.signup(email, password);
+    } else {
+      _auth.login(email, password);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Center(
@@ -24,7 +57,7 @@ class LoginScreen extends GetView<AuthController> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 24,
                   offset: const Offset(0, 8),
                 ),
@@ -34,7 +67,6 @@ class LoginScreen extends GetView<AuthController> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Logo / Title
                 ShaderMask(
                   shaderCallback: (bounds) =>
                       AppColors.primaryGradient.createShader(bounds),
@@ -51,7 +83,7 @@ class LoginScreen extends GetView<AuthController> {
                 ),
                 const SizedBox(height: 4),
                 Obx(() => Text(
-                      isSignUp.value ? 'Create Admin Account' : 'Admin Panel',
+                      _isSignUp.value ? 'Create Admin Account' : 'Admin Panel',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontFamily: 'Poppins',
@@ -61,33 +93,36 @@ class LoginScreen extends GetView<AuthController> {
                     )),
                 const SizedBox(height: 36),
 
-                // Email field
                 _buildLabel('Email'),
                 const SizedBox(height: 6),
                 _buildTextField(
-                  controller: emailController,
+                  controller: _emailController,
                   hint: 'admin@mealconnect.com',
                   icon: Icons.email_outlined,
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) =>
+                      FocusScope.of(context).requestFocus(_passwordFocus),
                 ),
                 const SizedBox(height: 20),
 
-                // Password field
                 _buildLabel('Password'),
                 const SizedBox(height: 6),
                 _buildTextField(
-                  controller: passwordController,
+                  controller: _passwordController,
                   hint: '••••••••',
                   icon: Icons.lock_outline,
                   obscure: true,
+                  focusNode: _passwordFocus,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submit(),
                 ),
                 const SizedBox(height: 12),
 
-                // Error message
-                Obx(() => controller.errorMessage.value.isNotEmpty
+                Obx(() => _auth.errorMessage.value.isNotEmpty
                     ? Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Text(
-                          controller.errorMessage.value,
+                          _auth.errorMessage.value,
                           style: const TextStyle(
                             fontFamily: 'Poppins',
                             fontSize: 13,
@@ -98,38 +133,22 @@ class LoginScreen extends GetView<AuthController> {
                       )
                     : const SizedBox.shrink()),
 
-                // Submit button
                 Obx(() => _buildGradientButton(
-                      label: controller.isLoading.value
+                      label: _auth.isLoading.value
                           ? 'Please wait...'
-                          : (isSignUp.value ? 'Create Account' : 'Sign In'),
-                      onTap: controller.isLoading.value
-                          ? null
-                          : () {
-                              if (isSignUp.value) {
-                                controller.signup(
-                                  emailController.text.trim(),
-                                  passwordController.text.trim(),
-                                );
-                              } else {
-                                controller.login(
-                                  emailController.text.trim(),
-                                  passwordController.text.trim(),
-                                );
-                              }
-                            },
+                          : (_isSignUp.value ? 'Create Account' : 'Sign In'),
+                      onTap: _auth.isLoading.value ? null : _submit,
                     )),
 
                 const SizedBox(height: 20),
 
-                // Toggle login/signup
                 Obx(() => GestureDetector(
                       onTap: () {
-                        isSignUp.value = !isSignUp.value;
-                        controller.errorMessage.value = '';
+                        _isSignUp.value = !_isSignUp.value;
+                        _auth.errorMessage.value = '';
                       },
                       child: Text(
-                        isSignUp.value
+                        _isSignUp.value
                             ? 'Already have an account? Sign In'
                             : "Don't have an account? Sign Up",
                         textAlign: TextAlign.center,
@@ -166,10 +185,16 @@ class LoginScreen extends GetView<AuthController> {
     required String hint,
     required IconData icon,
     bool obscure = false,
+    FocusNode? focusNode,
+    TextInputAction textInputAction = TextInputAction.next,
+    ValueChanged<String>? onSubmitted,
   }) {
     return TextField(
       controller: controller,
       obscureText: obscure,
+      focusNode: focusNode,
+      textInputAction: textInputAction,
+      onSubmitted: onSubmitted,
       style: const TextStyle(
         fontFamily: 'Poppins',
         fontSize: 14,

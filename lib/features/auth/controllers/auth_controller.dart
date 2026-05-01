@@ -17,7 +17,7 @@ class AuthController extends GetxController {
     errorMessage.value = '';
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
-      Get.offAllNamed(AppRoutes.DASHBOARD);
+      Get.offAllNamed(AppRoutes.HOME);
     } on FirebaseAuthException catch (e) {
       errorMessage.value = _mapAuthError(e.code);
     } finally {
@@ -35,7 +35,7 @@ class AuthController extends GetxController {
     try {
       await _auth.createUserWithEmailAndPassword(
           email: email, password: password);
-      Get.offAllNamed(AppRoutes.DASHBOARD);
+      Get.offAllNamed(AppRoutes.HOME);
     } on FirebaseAuthException catch (e) {
       errorMessage.value = _mapAuthError(e.code);
     } finally {
@@ -50,18 +50,24 @@ class AuthController extends GetxController {
 
   String _mapAuthError(String code) {
     switch (code) {
-      case 'user-not-found':
-        return 'No account found with this email.';
+      case 'invalid-credential':
       case 'wrong-password':
-        return 'Incorrect password.';
+      case 'user-not-found':
+        return 'Incorrect email or password.';
       case 'email-already-in-use':
         return 'An account with this email already exists.';
       case 'invalid-email':
-        return 'Invalid email address.';
+        return 'Please enter a valid email address.';
       case 'weak-password':
         return 'Password must be at least 6 characters.';
+      case 'user-disabled':
+        return 'This account has been disabled.';
+      case 'too-many-requests':
+        return 'Too many failed attempts. Please try again later.';
+      case 'network-request-failed':
+        return 'No internet connection. Please check your network.';
       default:
-        return 'Something went wrong. Please try again.';
+        return 'Incorrect email or password.';
     }
   }
 }
