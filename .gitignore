@@ -2,6 +2,13 @@
 CLAUDE.md
 .claude/
 
+# Local design assets (XD exports, never push)
+designs/
+
+# Firebase config (contains API keys — never push)
+google-services.json
+GoogleService-Info.plist
+
 # Miscellaneous
 *.class
 *.log
