@@ -13,8 +13,22 @@ class AuthService {
     required String password,
   }) async {
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
-      return null; // null = success
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final doc = await _firestore
+          .collection('users')
+          .doc(credential.user!.uid)
+          .get();
+
+      if (!doc.exists || doc.data()?['role'] != 'parent') {
+        await _auth.signOut();
+        return 'This account is not registered as a parent.';
+      }
+
+      return null;
     } on FirebaseAuthException catch (e) {
       return _errorMessage(e.code);
     }
