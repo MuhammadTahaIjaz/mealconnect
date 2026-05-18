@@ -6,6 +6,7 @@ import 'screens/splash_screen.dart';
 import 'screens/type_selection_screen.dart';
 import 'screens/sign_in_screen.dart';
 import 'screens/sign_up_screen.dart';
+import 'screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,9 +36,9 @@ class MyApp extends StatelessWidget {
         '/type-selection':           (context) => const TypeSelectionScreen(),
         '/parent-signin':            (context) => const SignInScreen(),
         '/parent-signup':            (context) => const SignUpScreen(),
+        '/parent-home':              (context) => const HomeScreen(),
         // Routes to be added as screens are built:
         // '/parent-children-details': (context) => const ChildrenDetailsScreen(),
-        // '/parent-home':             (context) => const ParentHomeScreen(),
       },
     );
   }
