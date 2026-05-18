@@ -36,9 +36,9 @@ class HomePage extends StatelessWidget {
       builder: (context, snapshot) {
         double balance = 0;
         if (snapshot.hasData && snapshot.data!.exists) {
-          balance = (snapshot.data!.data()
-                  as Map<String, dynamic>)['walletBalance'] ??
-              0;
+          final raw = (snapshot.data!.data()
+              as Map<String, dynamic>)['walletBalance'];
+          balance = (raw as num?)?.toDouble() ?? 0.0;
         }
         return Column(
           children: [
