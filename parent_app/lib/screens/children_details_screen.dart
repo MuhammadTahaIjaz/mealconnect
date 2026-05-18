@@ -77,11 +77,11 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
 
     try {
       final uid = FirebaseAuth.instance.currentUser!.uid;
-      final firestore = FirebaseFirestore.instance;
-      final batch = firestore.batch();
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
 
       for (int i = 0; i < _childCount; i++) {
-        final ref = firestore.collection('children').doc();
+        final ref = db.collection('children').doc();
         batch.set(ref, {
           'childId': ref.id,
           'parentId': uid,
@@ -102,7 +102,8 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
     } catch (_) {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Failed to save. Please check your connection and try again.';
+        _errorMessage =
+            'Failed to save. Please check your connection and try again.';
       });
     }
   }
@@ -118,33 +119,42 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
             children: [
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 36),
+
+                      // ── Title ───────────────────────────────────────────
                       const Center(
                         child: Text(
                           'CHILDREN DETAILS',
                           style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w700,
-                            letterSpacing: 2.0,
+                            letterSpacing: 1.8,
                             color: Color(0xFF1A1A1A),
                           ),
                         ),
                       ),
                       const SizedBox(height: 28),
-                      _buildCountRow(),
+
+                      // ── No. of Children ──────────────────────────────────
+                      _buildCountCard(),
                       const SizedBox(height: 16),
-                      _buildSameSchoolToggle(),
-                      const SizedBox(height: 28),
+
+                      // ── Same School Toggle ────────────────────────────────
+                      _buildSameSchoolRow(),
+                      const SizedBox(height: 24),
+
+                      // ── Child Forms ──────────────────────────────────────
                       ...List.generate(_childCount, _buildChildForm),
+
+                      // ── Shared school name ────────────────────────────────
                       if (_sameSchool) ...[
-                        const SizedBox(height: 4),
-                        _buildField(
+                        _buildShadowField(
                           controller: _sharedSchoolController,
-                          label: 'School / College Name',
+                          label: 'School / Collage Name',
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) {
                               return 'School name is required';
@@ -152,9 +162,12 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
                             return null;
                           },
                         ),
+                        const SizedBox(height: 8),
                       ],
+
+                      // ── Error ─────────────────────────────────────────────
                       if (_errorMessage != null) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 10),
@@ -171,11 +184,13 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
               ),
+
+              // ── Fixed CONTINUE button ─────────────────────────────────────
               _buildContinueButton(),
             ],
           ),
@@ -184,17 +199,19 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
     );
   }
 
-  Widget _buildCountRow() {
+  // ── No. of Children card ─────────────────────────────────────────────────
+
+  Widget _buildCountCard() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -209,16 +226,22 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
               color: Color(0xFF1A1A1A),
             ),
           ),
+          // Stepper pill: "- 2 +"
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFEEEEEE)),
+              border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
             ),
             child: Row(
               children: [
                 _stepperBtn('-', () => _onCountChange(-1)),
+                Container(
+                  width: 1,
+                  height: 28,
+                  color: const Color(0xFFEEEEEE),
+                ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: Text(
                     '$_childCount',
                     style: const TextStyle(
@@ -227,6 +250,11 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
+                ),
+                Container(
+                  width: 1,
+                  height: 28,
+                  color: const Color(0xFFEEEEEE),
                 ),
                 _stepperBtn('+', () => _onCountChange(1)),
               ],
@@ -237,102 +265,111 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
     );
   }
 
-  Widget _stepperBtn(String label, VoidCallback onTap) {
+  Widget _stepperBtn(String symbol, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w400,
-            color: Color(0xFF9B9B9B),
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: Center(
+          child: Text(
+            symbol,
+            style: const TextStyle(
+              fontSize: 20,
+              color: Color(0xFF9B9B9B),
+              fontWeight: FontWeight.w400,
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSameSchoolToggle() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Text(
-              'All Children are in same School?',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w400,
-                color: Color(0xFF1A1A1A),
-              ),
+  // ── Same School row ───────────────────────────────────────────────────────
+
+  Widget _buildSameSchoolRow() {
+    return Row(
+      children: [
+        const Expanded(
+          child: Text(
+            'All Children are in same School?',
+            style: TextStyle(
+              fontSize: 13,
+              color: Color(0xFF1A1A1A),
+              fontWeight: FontWeight.w400,
             ),
           ),
-          const SizedBox(width: 12),
-          _radioOption('No', !_sameSchool, () => setState(() => _sameSchool = false)),
-          const SizedBox(width: 18),
-          _radioOption('Yes', _sameSchool, () => setState(() => _sameSchool = true)),
-        ],
+        ),
+        const SizedBox(width: 12),
+        // "No" option
+        GestureDetector(
+          onTap: () => setState(() => _sameSchool = false),
+          child: Column(
+            children: [
+              _radioCircle(selected: !_sameSchool),
+              const SizedBox(height: 3),
+              Text(
+                'No',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: !_sameSchool ? _orange : const Color(0xFF9B9B9B),
+                  fontWeight:
+                      !_sameSchool ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 16),
+        // "Yes" option
+        GestureDetector(
+          onTap: () => setState(() => _sameSchool = true),
+          child: Column(
+            children: [
+              _radioCircle(selected: _sameSchool),
+              const SizedBox(height: 3),
+              Text(
+                'Yes',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _sameSchool ? _orange : const Color(0xFF9B9B9B),
+                  fontWeight:
+                      _sameSchool ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _radioCircle({required bool selected}) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? _orange : Colors.transparent,
+        border: Border.all(
+          color: selected ? _orange : const Color(0xFFCCCCCC),
+          width: 2,
+        ),
       ),
     );
   }
 
-  Widget _radioOption(String label, bool selected, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: selected ? _orange : Colors.transparent,
-              border: Border.all(
-                color: selected ? _orange : const Color(0xFFCCCCCC),
-                width: 2,
-              ),
-            ),
-            child: selected
-                ? const Icon(Icons.check, size: 13, color: Colors.white)
-                : null,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: selected ? _orange : const Color(0xFF9B9B9B),
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // ── Child form block ──────────────────────────────────────────────────────
 
   Widget _buildChildForm(int index) {
     return Column(
       children: [
+        // Centered avatar
         Center(
           child: Container(
-            width: 66,
-            height: 66,
+            width: 64,
+            height: 64,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
@@ -341,28 +378,34 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
                 end: Alignment.bottomRight,
               ),
             ),
-            child: const Icon(Icons.person, color: Colors.white, size: 32),
+            child: const Icon(Icons.person, color: Colors.white, size: 30),
           ),
         ),
-        const SizedBox(height: 14),
-        _buildField(
+        const SizedBox(height: 16),
+
+        // Name field
+        _buildShadowField(
           controller: _nameControllers[index],
           label: 'Children Name',
           validator: (v) =>
               v == null || v.trim().isEmpty ? 'Name is required' : null,
         ),
         const SizedBox(height: 12),
-        _buildField(
+
+        // School ID field
+        _buildShadowField(
           controller: _idControllers[index],
           label: 'Child School ID',
           validator: (v) =>
               v == null || v.trim().isEmpty ? 'School ID is required' : null,
         ),
+
+        // Per-child school name (when different schools)
         if (!_sameSchool) ...[
           const SizedBox(height: 12),
-          _buildField(
+          _buildShadowField(
             controller: _schoolControllers[index],
-            label: 'School / College Name',
+            label: 'School / Collage Name',
             validator: (v) =>
                 v == null || v.trim().isEmpty ? 'School name is required' : null,
           ),
@@ -372,54 +415,80 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
     );
   }
 
-  Widget _buildField({
+  // ── Shadow text field (matches design: shadow instead of outline) ─────────
+
+  Widget _buildShadowField({
     required TextEditingController controller,
     required String label,
     FormFieldValidator<String>? validator,
   }) {
-    return TextFormField(
-      controller: controller,
-      validator: validator,
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-        color: Color(0xFF1A1A1A),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(
-          color: Color(0xFF9B9B9B),
-          fontSize: 13,
-          fontWeight: FontWeight.w400,
+      child: TextFormField(
+        controller: controller,
+        validator: validator,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: Color(0xFF1A1A1A),
         ),
-        filled: true,
-        fillColor: Colors.white,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1.2),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(
+            color: Color(0xFF9B9B9B),
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+          ),
+          floatingLabelStyle: const TextStyle(
+            color: Color(0xFF9B9B9B),
+            fontSize: 12,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: _pink, width: 1.5),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFE53935)),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                const BorderSide(color: Color(0xFFE53935), width: 1.5),
+          ),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _pink, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE53935)),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE53935), width: 1.5),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       ),
     );
   }
 
+  // ── Continue button fixed at bottom ───────────────────────────────────────
+
   Widget _buildContinueButton() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
       color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
       child: SizedBox(
         width: double.infinity,
         height: 54,
@@ -431,7 +500,11 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
               )
             : DecoratedBox(
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [_pink, _orange]),
+                  gradient: const LinearGradient(
+                    colors: [_pink, _orange],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
                   borderRadius: BorderRadius.circular(27),
                 ),
                 child: ElevatedButton(
