@@ -15,57 +15,62 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FC),
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 24),
-            _buildWalletBalance(uid),
-            const SizedBox(height: 24),
-            Expanded(child: _buildChildrenList(uid)),
-          ],
+        child: StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('parents')
+              .doc(uid)
+              .snapshots(),
+          builder: (context, parentSnap) {
+            final raw = parentSnap.hasData && parentSnap.data!.exists
+                ? (parentSnap.data!.data()
+                    as Map<String, dynamic>)['walletBalance']
+                : null;
+            final balance = (raw as num?)?.toDouble() ?? 0.0;
+
+            return Column(
+              children: [
+                const SizedBox(height: 28),
+                _buildWalletHeader(balance),
+                const SizedBox(height: 24),
+                Expanded(child: _buildChildrenList(context, uid, balance)),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildWalletBalance(String uid) {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('parents')
-          .doc(uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        double balance = 0;
-        if (snapshot.hasData && snapshot.data!.exists) {
-          final raw = (snapshot.data!.data()
-              as Map<String, dynamic>)['walletBalance'];
-          balance = (raw as num?)?.toDouble() ?? 0.0;
-        }
-        return Column(
-          children: [
-            Text(
-              '\$${balance.toStringAsFixed(0)}',
-              style: const TextStyle(
-                fontSize: 42,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1A1A1A),
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Total Wallet balance',
-              style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF9B9B9B),
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ],
-        );
-      },
+  // ── Wallet balance header ─────────────────────────────────────────────────
+
+  Widget _buildWalletHeader(double balance) {
+    return Column(
+      children: [
+        Text(
+          '\$${balance.toStringAsFixed(0)}',
+          style: const TextStyle(
+            fontSize: 44,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1A1A1A),
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Total Wallet balance',
+          style: TextStyle(
+            fontSize: 14,
+            color: Color(0xFF9B9B9B),
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildChildrenList(String uid) {
+  // ── Children list ─────────────────────────────────────────────────────────
+
+  Widget _buildChildrenList(
+      BuildContext context, String uid, double balance) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('children')
@@ -80,44 +85,33 @@ class HomePage extends StatelessWidget {
           );
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.child_care,
-                    size: 64, color: Colors.grey.shade300),
-                const SizedBox(height: 16),
-                const Text(
-                  'No children added yet.',
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Color(0xFF9B9B9B),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
+        final docs = snapshot.data?.docs ?? [];
 
-        final docs = snapshot.data!.docs;
-        return ListView.separated(
+        return ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          itemCount: docs.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final data = docs[index].data() as Map<String, dynamic>;
-            return _buildChildCard(data);
-          },
+          children: [
+            ...docs.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildChildCard(data, balance),
+              );
+            }),
+            _buildAddChildButton(context),
+            const SizedBox(height: 8),
+          ],
         );
       },
     );
   }
 
-  Widget _buildChildCard(Map<String, dynamic> data) {
-    final name = data['name'] ?? 'Child';
-    final schoolName = data['schoolName'] ?? '';
-    final schoolId = data['classRollNo'] ?? '';
+  // ── Child card ────────────────────────────────────────────────────────────
+
+  Widget _buildChildCard(Map<String, dynamic> data, double balance) {
+    final name = (data['name'] as String?) ?? 'Child';
+    final school = (data['schoolName'] as String?) ?? '';
+    final schoolId = (data['classRollNo'] as String?) ?? '';
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -126,7 +120,7 @@ class HomePage extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withValues(alpha: 0.07),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -135,9 +129,10 @@ class HomePage extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Avatar
           Container(
-            width: 52,
-            height: 52,
+            width: 54,
+            height: 54,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
@@ -148,7 +143,7 @@ class HomePage extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                initial,
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -157,7 +152,9 @@ class HomePage extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
+
+          // Middle info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -171,34 +168,128 @@ class HomePage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                if (schoolName.isNotEmpty)
+                if (school.isNotEmpty)
                   Text(
-                    schoolName,
+                    school,
                     style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF9B9B9B),
-                    ),
+                        fontSize: 13, color: Color(0xFF9B9B9B)),
                   ),
                 if (schoolId.isNotEmpty)
                   Text(
                     schoolId,
                     style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF9B9B9B),
-                    ),
+                        fontSize: 13, color: Color(0xFF9B9B9B)),
                   ),
+                const SizedBox(height: 2),
+                _infoRow('Type:', 'Wallet Balance'),
+                _infoRow('Duration:', 'Weekly'),
               ],
             ),
           ),
-          const Text(
-            'Edit',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: _orange,
-            ),
+          const SizedBox(width: 8),
+
+          // Right side: Edit + wallet balance
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text(
+                'Edit',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _orange,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '\$${balance.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A1A),
+                ),
+              ),
+              const Text(
+                'Wallet balance',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Color(0xFF9B9B9B),
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 1),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(fontSize: 13, color: Color(0xFF9B9B9B)),
+          children: [
+            TextSpan(
+              text: '$label ',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            TextSpan(text: value),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Add child button ──────────────────────────────────────────────────────
+
+  Widget _buildAddChildButton(BuildContext context) {
+    return GestureDetector(
+      onTap: () =>
+          Navigator.pushNamed(context, '/parent-add-child'),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFFFF3366).withValues(alpha: 0.3),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [_pink, _orange],
+                ),
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Add Child',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1A1A),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
