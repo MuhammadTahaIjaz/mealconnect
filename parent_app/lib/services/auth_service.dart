@@ -65,7 +65,7 @@ class AuthService {
       await _firestore.collection('parents').doc(credential.user!.uid).set({
         'parentId': credential.user!.uid,
         'userId': credential.user!.uid,
-        'walletBalance': 0,
+        'walletBalance': 0.0,
         'accountStatus': 'pending',
       });
 
