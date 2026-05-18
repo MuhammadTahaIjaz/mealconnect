@@ -83,7 +83,7 @@ class _SignUpScreenState extends State<SignUpScreen>
     if (error != null) {
       setState(() => _errorMessage = error);
     } else {
-      Navigator.pushReplacementNamed(context, '/parent-home');
+      Navigator.pushReplacementNamed(context, '/parent-children-details');
     }
   }
 
