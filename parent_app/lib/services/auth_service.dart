@@ -75,6 +75,20 @@ class AuthService {
     }
   }
 
+  static Future<bool> hasChildren(String uid) async {
+    try {
+      final snap = await _firestore
+          .collection('children')
+          .where('parentId', isEqualTo: uid)
+          .limit(1)
+          .get()
+          .timeout(const Duration(seconds: 10));
+      return snap.docs.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<void> signOut() => _auth.signOut();
 
   static String _errorMessage(String code) {

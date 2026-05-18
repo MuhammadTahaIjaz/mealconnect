@@ -72,7 +72,14 @@ class _SignInScreenState extends State<SignInScreen>
     if (error != null) {
       setState(() => _errorMessage = error);
     } else {
-      Navigator.pushReplacementNamed(context, '/parent-home');
+      final uid = AuthService.currentUser!.uid;
+      final hasChildren = await AuthService.hasChildren(uid);
+      if (!mounted) return;
+      if (hasChildren) {
+        Navigator.pushReplacementNamed(context, '/parent-home');
+      } else {
+        Navigator.pushReplacementNamed(context, '/parent-children-details');
+      }
     }
   }
 
