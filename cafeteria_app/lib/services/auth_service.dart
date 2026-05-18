@@ -18,14 +18,20 @@ class AuthService {
         password: password,
       );
 
-      final doc = await _firestore
-          .collection('users')
-          .doc(credential.user!.uid)
-          .get();
+      try {
+        final doc = await _firestore
+            .collection('users')
+            .doc(credential.user!.uid)
+            .get()
+            .timeout(const Duration(seconds: 10));
 
-      if (!doc.exists || doc.data()?['role'] != 'cafeteria') {
+        if (!doc.exists || doc.data()?['role'] != 'cafeteria') {
+          await _auth.signOut();
+          return 'This account is not registered as a cafeteria.';
+        }
+      } catch (_) {
         await _auth.signOut();
-        return 'This account is not registered as a cafeteria.';
+        return 'Unable to verify your account. Check your internet connection and try again.';
       }
 
       return null;
