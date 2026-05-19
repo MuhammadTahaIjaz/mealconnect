@@ -40,15 +40,27 @@ class _AddChildScreenState extends State<AddChildScreen> {
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final ref = FirebaseFirestore.instance.collection('children').doc();
 
+      final childName = _nameController.text.trim();
+
       await ref.set({
         'childId': ref.id,
         'parentId': uid,
-        'name': _nameController.text.trim(),
+        'name': childName,
         'classRollNo': _idController.text.trim(),
         'schoolName': _schoolController.text.trim(),
         'schoolId': '',
         'verificationStatus': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Notify admin of the new child verification request
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'userId': 'admin',
+        'title': 'New Child Verification Request',
+        'message': '$childName — verification required.',
+        'type': 'new_child_request',
+        'isRead': false,
+        'timestamp': FieldValue.serverTimestamp(),
       });
 
       if (mounted) Navigator.pop(context);

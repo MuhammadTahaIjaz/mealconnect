@@ -26,6 +26,9 @@ dependencies:
   # Charts
   fl_chart: ^0.69.0
 
+  # HTTP for EmailJS
+  http: ^1.2.2
+
   # Firebase Core (Must be first)
   firebase_core: ^4.6.0  # Latest - required for all Firebase services
   

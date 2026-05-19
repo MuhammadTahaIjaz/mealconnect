@@ -69,6 +69,16 @@ class AuthService {
         'accountStatus': 'pending',
       });
 
+      // Notify admin of the new sign-up request
+      await _firestore.collection('notifications').add({
+        'userId': 'admin',
+        'title': 'New Parent Registration',
+        'message': '$name has registered and is awaiting approval.',
+        'type': 'new_parent_request',
+        'isRead': false,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
       return null;
     } on FirebaseAuthException catch (e) {
       return _errorMessage(e.code);

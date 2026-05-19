@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import '../../../app/services/notification_service.dart';
 
 class ChildRecord {
   final String childId;
@@ -75,10 +76,28 @@ class ChildrenController extends GetxController {
 
   Future<void> updateStatus(String childId, String status) async {
     try {
+      final child = children.firstWhere((c) => c.childId == childId);
+
       await _db
           .collection('children')
           .doc(childId)
           .update({'verificationStatus': status});
+
+      // Notify the parent in-app
+      final title = status == 'approved'
+          ? 'Child Verification Approved'
+          : 'Child Verification Not Approved';
+      final message = status == 'approved'
+          ? '${child.childName}\'s school enrollment has been verified successfully.'
+          : '${child.childName}\'s verification was not successful. Please check the details and resubmit.';
+
+      await NotificationService.notifyUser(
+        userId: child.parentId,
+        title: title,
+        message: message,
+        type: 'child_$status',
+      );
+
       children.removeWhere((c) => c.childId == childId);
       Get.snackbar(
         status == 'approved' ? 'Approved' : 'Rejected',

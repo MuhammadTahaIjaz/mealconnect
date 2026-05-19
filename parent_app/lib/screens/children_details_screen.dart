@@ -99,6 +99,20 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
 
       await batch.commit();
 
+      // Notify admin of the new child verification requests
+      final childNames = List.generate(
+        _childCount,
+        (i) => _nameControllers[i].text.trim(),
+      ).join(', ');
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'userId': 'admin',
+        'title': 'New Child Verification Request',
+        'message': '$childNames — verification required.',
+        'type': 'new_child_request',
+        'isRead': false,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
       if (mounted) {
         final status = await AuthService.getAccountStatus(uid);
         if (!mounted) return;
