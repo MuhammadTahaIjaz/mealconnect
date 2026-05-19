@@ -33,6 +33,15 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <!-- EmailJS SDK — loaded before Flutter so it's ready when the app calls it -->
+  <script
+    type="text/javascript"
+    src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js">
+  </script>
+  <script type="text/javascript">
+    emailjs.init({ publicKey: '6vVeAAiaLo07aLt8A' });
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
