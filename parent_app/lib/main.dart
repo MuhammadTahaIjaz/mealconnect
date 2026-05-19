@@ -8,6 +8,7 @@ import 'screens/sign_in_screen.dart';
 import 'screens/sign_up_screen.dart';
 import 'screens/children_details_screen.dart';
 import 'screens/add_child_screen.dart';
+import 'screens/pending_approval_screen.dart';
 import 'screens/home_shell.dart';
 
 void main() async {
@@ -40,6 +41,7 @@ class MyApp extends StatelessWidget {
         '/parent-signup':             (context) => const SignUpScreen(),
         '/parent-children-details':   (context) => const ChildrenDetailsScreen(),
         '/parent-add-child':          (context) => const AddChildScreen(),
+        '/parent-pending':            (context) => const PendingApprovalScreen(),
         '/parent-home':               (context) => const HomeShell(),
       },
     );

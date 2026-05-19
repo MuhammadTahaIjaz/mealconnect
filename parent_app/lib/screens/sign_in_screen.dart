@@ -73,12 +73,24 @@ class _SignInScreenState extends State<SignInScreen>
       setState(() => _errorMessage = error);
     } else {
       final uid = AuthService.currentUser!.uid;
-      final hasChildren = await AuthService.hasChildren(uid);
+      final status = await AuthService.getAccountStatus(uid);
       if (!mounted) return;
-      if (hasChildren) {
-        Navigator.pushReplacementNamed(context, '/parent-home');
+
+      if (status == 'approved') {
+        final hasChildren = await AuthService.hasChildren(uid);
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(
+          context,
+          hasChildren ? '/parent-home' : '/parent-children-details',
+        );
+      } else if (status == 'rejected') {
+        await AuthService.signOut();
+        setState(() => _errorMessage =
+            'Your account request was not approved. '
+            'Please contact the school admin for more information.');
       } else {
-        Navigator.pushReplacementNamed(context, '/parent-children-details');
+        // pending
+        Navigator.pushReplacementNamed(context, '/parent-pending');
       }
     }
   }

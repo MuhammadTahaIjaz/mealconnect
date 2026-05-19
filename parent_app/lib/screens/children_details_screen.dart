@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/auth_service.dart';
 
 class ChildrenDetailsScreen extends StatefulWidget {
   const ChildrenDetailsScreen({super.key});
@@ -96,8 +97,14 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
       }
 
       await batch.commit();
+
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/parent-home');
+        final status = await AuthService.getAccountStatus(uid);
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(
+          context,
+          status == 'approved' ? '/parent-home' : '/parent-pending',
+        );
       }
     } catch (_) {
       setState(() {
@@ -192,6 +199,7 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
 
               // ── Fixed CONTINUE button ─────────────────────────────────────
               _buildContinueButton(),
+              _buildSkipButton(),
             ],
           ),
         ),
@@ -527,6 +535,36 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
                   ),
                 ),
               ),
+      ),
+    );
+  }
+
+  Widget _buildSkipButton() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.only(bottom: 16),
+      child: GestureDetector(
+        onTap: () async {
+          final uid = FirebaseAuth.instance.currentUser!.uid;
+          final status = await AuthService.getAccountStatus(uid);
+          if (!mounted) return;
+          Navigator.pushReplacementNamed(
+            context,
+            status == 'approved' ? '/parent-home' : '/parent-pending',
+          );
+        },
+        child: const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            'Skip for now',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF9B9B9B),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
       ),
     );
   }
