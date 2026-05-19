@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -50,13 +52,40 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    // Navigate to next screen after 3 seconds
-    // Replace '/home' with your actual next route
-    Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/type-selection');
-      }
+    // Run minimum splash duration and auth check in parallel
+    Future.wait([
+      Future.delayed(const Duration(milliseconds: 2500)),
+      _resolveRoute(),
+    ]).then((_) {
+      if (mounted) _navigate();
     });
+  }
+
+  String _nextRoute = '/type-selection';
+
+  Future<void> _resolveRoute() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _nextRoute = '/type-selection';
+      return;
+    }
+
+    try {
+      final status = await AuthService.getAccountStatus(user.uid);
+      if (status == 'approved') {
+        final hasChildren = await AuthService.hasChildren(user.uid);
+        _nextRoute = hasChildren ? '/parent-home' : '/parent-children-details';
+      } else {
+        // pending or rejected → go to pending screen (shows rejection too)
+        _nextRoute = '/parent-pending';
+      }
+    } catch (_) {
+      _nextRoute = '/type-selection';
+    }
+  }
+
+  void _navigate() {
+    Navigator.pushReplacementNamed(context, _nextRoute);
   }
 
   @override
@@ -76,16 +105,15 @@ class _SplashScreenState extends State<SplashScreen>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFFF3366), // Hot pink at top
-              Color(0xFFFF6633), // Orange-red in middle
-              Color(0xFFFF8C00), // Deep orange at bottom
+              Color(0xFFFF3366),
+              Color(0xFFFF6633),
+              Color(0xFFFF8C00),
             ],
             stops: [0.0, 0.55, 1.0],
           ),
         ),
         child: Stack(
           children: [
-            // ── App name & tagline (center of screen) ──
             Positioned(
               top: MediaQuery.of(context).size.height * 0.38,
               left: 0,
@@ -97,11 +125,10 @@ class _SplashScreenState extends State<SplashScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // App Name
                       const Text(
                         'MealConnect',
                         style: TextStyle(
-                          fontFamily: 'Georgia', // italic serif feel
+                          fontFamily: 'Georgia',
                           fontSize: 42,
                           fontStyle: FontStyle.italic,
                           fontWeight: FontWeight.w400,
@@ -110,13 +137,12 @@ class _SplashScreenState extends State<SplashScreen>
                         ),
                       ),
                       const SizedBox(height: 10),
-                      // Tagline
                       Text(
                         'Tasty & Healthy',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w300,
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           letterSpacing: 2.0,
                         ),
                       ),
@@ -125,8 +151,6 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
             ),
-
-            // ── Food image at the bottom ──
             AnimatedBuilder(
               animation: _imageSlideAnimation,
               builder: (context, child) {
@@ -142,14 +166,8 @@ class _SplashScreenState extends State<SplashScreen>
               },
               child: Image.asset(
                 'assets/images/splash_food.png',
-                // ── IMPORTANT ──────────────────────────────────────────────
-                // Add a food/meal image to: assets/images/splash_food.png
-                // Then declare it in pubspec.yaml under flutter > assets:
-                //   - assets/images/splash_food.png
-                // ───────────────────────────────────────────────────────────
                 fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) {
-                  // Placeholder shown when image is not yet added
                   return const SizedBox(
                     height: 300,
                     child: Center(

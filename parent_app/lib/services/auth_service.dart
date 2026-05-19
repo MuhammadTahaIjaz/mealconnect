@@ -75,6 +75,19 @@ class AuthService {
     }
   }
 
+  static Future<String> getAccountStatus(String uid) async {
+    try {
+      final doc = await _firestore
+          .collection('parents')
+          .doc(uid)
+          .get()
+          .timeout(const Duration(seconds: 10));
+      return (doc.data()?['accountStatus'] as String?) ?? 'pending';
+    } catch (_) {
+      return 'pending';
+    }
+  }
+
   static Future<bool> hasChildren(String uid) async {
     try {
       final snap = await _firestore
