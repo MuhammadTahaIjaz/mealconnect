@@ -17,27 +17,21 @@ import 'package:http/http.dart' as http;
 /// 4. Go to Account → General → copy your Public Key.
 /// 5. Replace the three constants below with your real values.
 class EmailService {
-  static const _serviceId  = 'YOUR_SERVICE_ID';   // e.g. 'service_abc123'
-  static const _templateId = 'YOUR_TEMPLATE_ID';  // e.g. 'template_xyz789'
-  static const _publicKey  = 'YOUR_PUBLIC_KEY';   // e.g. 'user_AbCdEfGhIj'
-
-  static bool get _isConfigured =>
-      _serviceId != 'YOUR_SERVICE_ID' &&
-      _templateId != 'YOUR_TEMPLATE_ID' &&
-      _publicKey != 'YOUR_PUBLIC_KEY';
+  static const _serviceId = 'service_nyf61xm'; // e.g. 'service_abc123'
+  static const _templateId = 'template_3nay1vn'; // e.g. 'template_xyz789'
+  static const _publicKey = '6vVeAAiaLo07aLt8A'; // e.g. 'user_AbCdEfGhIj'
 
   static Future<void> sendParentStatusEmail({
     required String email,
     required String name,
     required String status, // 'approved' or 'rejected'
   }) async {
-    if (!_isConfigured) return; // skip silently until credentials are filled in
 
     final message = status == 'approved'
         ? 'Your MealConnect parent account has been approved. '
-          'Open the app and sign in to continue.'
+              'Open the app and sign in to continue.'
         : 'Your MealConnect account request was not approved. '
-          'Please contact the school admin for more information.';
+              'Please contact the school admin for more information.';
 
     try {
       await http.post(
