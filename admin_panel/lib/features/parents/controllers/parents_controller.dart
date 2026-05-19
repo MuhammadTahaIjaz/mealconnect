@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import '../../../app/services/notification_service.dart';
+import '../../../app/services/email_service.dart';
 
 class ParentRecord {
   final String parentId;
@@ -72,17 +74,42 @@ class ParentsController extends GetxController {
 
   Future<void> updateStatus(String parentId, String status) async {
     try {
+      final parent = parents.firstWhere((p) => p.parentId == parentId);
+
       await _db
           .collection('parents')
           .doc(parentId)
           .update({'accountStatus': status});
+
+      // Notify the parent in-app
+      final title = status == 'approved'
+          ? 'Account Approved'
+          : 'Account Not Approved';
+      final message = status == 'approved'
+          ? 'Your MealConnect account has been approved. You can now sign in and use the app.'
+          : 'Your account request was not approved. Please contact your school admin for more information.';
+
+      await NotificationService.notifyUser(
+        userId: parent.userId,
+        title: title,
+        message: message,
+        type: 'account_$status',
+      );
+
+      // Send email to the parent
+      await EmailService.sendParentStatusEmail(
+        email: parent.email,
+        name: parent.name,
+        status: status,
+      );
+
       parents.removeWhere((p) => p.parentId == parentId);
       Get.snackbar(
         status == 'approved' ? 'Approved' : 'Rejected',
         'Parent account has been $status.',
         snackPosition: SnackPosition.BOTTOM,
       );
-    } catch (e) {
+    } catch (_) {
       Get.snackbar('Error', 'Failed to update status.');
     }
   }

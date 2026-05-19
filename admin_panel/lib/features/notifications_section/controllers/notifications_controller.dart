@@ -37,6 +37,7 @@ class NotificationsController extends GetxController {
     try {
       final snapshot = await _db
           .collection('notifications')
+          .where('userId', isEqualTo: 'admin')
           .orderBy('timestamp', descending: true)
           .limit(50)
           .get();
