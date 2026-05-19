@@ -10,12 +10,13 @@ class CustomSidebar extends StatelessWidget {
   static const _width = 240.0;
 
   static const _items = [
-    {'icon': Icons.dashboard_outlined, 'activeIcon': Icons.dashboard, 'label': 'Dashboard'},
-    {'icon': Icons.people_outline, 'activeIcon': Icons.people, 'label': 'Verify Parents'},
-    {'icon': Icons.store_outlined, 'activeIcon': Icons.store, 'label': 'Verify Cafeterias'},
-    {'icon': Icons.manage_accounts_outlined, 'activeIcon': Icons.manage_accounts, 'label': 'User Management'},
-    {'icon': Icons.bar_chart_outlined, 'activeIcon': Icons.bar_chart, 'label': 'Delivery Reports'},
-    {'icon': Icons.notifications_outlined, 'activeIcon': Icons.notifications, 'label': 'Notifications'},
+    {'icon': Icons.dashboard_outlined,        'activeIcon': Icons.dashboard,        'label': 'Dashboard'},
+    {'icon': Icons.people_outline,            'activeIcon': Icons.people,            'label': 'Verify Parents'},
+    {'icon': Icons.store_outlined,            'activeIcon': Icons.store,             'label': 'Verify Cafeterias'},
+    {'icon': Icons.child_care_outlined,       'activeIcon': Icons.child_care,        'label': 'Verify Children'},
+    {'icon': Icons.manage_accounts_outlined,  'activeIcon': Icons.manage_accounts,   'label': 'User Management'},
+    {'icon': Icons.bar_chart_outlined,        'activeIcon': Icons.bar_chart,         'label': 'Delivery Reports'},
+    {'icon': Icons.notifications_outlined,    'activeIcon': Icons.notifications,     'label': 'Notifications'},
   ];
 
   @override

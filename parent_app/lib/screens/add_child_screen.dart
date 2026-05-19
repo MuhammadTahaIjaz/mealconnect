@@ -47,6 +47,7 @@ class _AddChildScreenState extends State<AddChildScreen> {
         'classRollNo': _idController.text.trim(),
         'schoolName': _schoolController.text.trim(),
         'schoolId': '',
+        'verificationStatus': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
 

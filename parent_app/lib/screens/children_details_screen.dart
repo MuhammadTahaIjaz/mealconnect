@@ -92,6 +92,7 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
               ? _sharedSchoolController.text.trim()
               : _schoolControllers[i].text.trim(),
           'schoolId': '',
+          'verificationStatus': 'pending',
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
