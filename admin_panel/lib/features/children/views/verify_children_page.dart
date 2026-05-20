@@ -51,11 +51,6 @@ class VerifyChildrenPage extends GetView<ChildrenController> {
                 )),
           ],
         ),
-        IconButton(
-          onPressed: controller.fetchPendingChildren,
-          icon: const Icon(Icons.refresh, color: AppColors.primaryPink),
-          tooltip: 'Refresh',
-        ),
       ],
     );
   }
@@ -236,14 +231,23 @@ class VerifyChildrenPage extends GetView<ChildrenController> {
       onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       hoverDecoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
+        color: color,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.6)),
+        border: Border.all(color: color),
+      ),
+      hoveredChild: Text(
+        label,
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
       ),
       child: Text(
         label,

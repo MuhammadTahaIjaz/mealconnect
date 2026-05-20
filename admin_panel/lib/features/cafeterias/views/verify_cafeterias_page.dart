@@ -51,11 +51,6 @@ class VerifyCafeteriasPage extends GetView<CafeteriasController> {
                 )),
           ],
         ),
-        IconButton(
-          onPressed: controller.fetchPendingCafeterias,
-          icon: const Icon(Icons.refresh, color: AppColors.primaryPink),
-          tooltip: 'Refresh',
-        ),
       ],
     );
   }
@@ -193,29 +188,37 @@ class VerifyCafeteriasPage extends GetView<CafeteriasController> {
     required Color color,
     required VoidCallback onTap,
   }) {
-    final child = Text(
-      label,
-      style: TextStyle(
-        fontFamily: 'Poppins',
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: color,
-      ),
-    );
     return CustomHoverButton(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       hoverDecoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
+        color: color,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.6)),
+        border: Border.all(color: color),
       ),
-      child: child,
+      hoveredChild: Text(
+        label,
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
     );
   }
 }
