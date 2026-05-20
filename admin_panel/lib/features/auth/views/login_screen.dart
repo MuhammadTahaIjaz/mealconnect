@@ -157,15 +157,25 @@ class _LoginScreenState extends State<LoginScreen> {
                                 FocusScope.of(context).requestFocus(_branchFocus),
                           ),
                           const SizedBox(height: 20),
-                          _buildLabel('Branch Name (optional)'),
+                          _buildLabel('Branch / City Name'),
                           const SizedBox(height: 6),
                           _buildTextField(
                             controller: _branchController,
-                            hint: 'e.g. Gulshan Campus',
+                            hint: 'e.g. Gulshan Campus or Lahore',
                             icon: Icons.location_on_outlined,
                             focusNode: _branchFocus,
                             textInputAction: TextInputAction.done,
                             onSubmitted: (_) => _submit(),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'If your school has only one branch, enter the city name. '
+                            'For multiple branches, use the branch name.',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ],
                       )

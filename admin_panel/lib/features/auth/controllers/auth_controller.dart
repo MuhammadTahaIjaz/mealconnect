@@ -61,8 +61,8 @@ class AuthController extends GetxController {
     String schoolName,
     String branch,
   ) async {
-    if (email.isEmpty || password.isEmpty || schoolName.isEmpty) {
-      errorMessage.value = 'Email, password and school name are required.';
+    if (email.isEmpty || password.isEmpty || schoolName.isEmpty || branch.isEmpty) {
+      errorMessage.value = 'All fields are required.';
       return;
     }
     isLoading.value = true;
