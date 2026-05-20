@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import '../../../app/services/notification_service.dart';
@@ -77,6 +78,31 @@ class ChildrenController extends GetxController {
   Future<void> updateStatus(String childId, String status) async {
     try {
       final child = children.firstWhere((c) => c.childId == childId);
+
+      // Block child approval if the parent account is not yet approved
+      if (status == 'approved') {
+        final parentDoc = await _db
+            .collection('parents')
+            .doc(child.parentId)
+            .get();
+        final parentStatus =
+            (parentDoc.data()?['accountStatus'] as String?) ?? 'pending';
+
+        if (parentStatus != 'approved') {
+          final parentLabel = child.parentName.isNotEmpty
+              ? child.parentName
+              : child.parentEmail;
+          Get.snackbar(
+            'Parent Not Approved Yet',
+            'Please approve $parentLabel\'s account first before approving this child.',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: const Color(0xFFFFF3CD),
+            colorText: const Color(0xFF856404),
+            duration: const Duration(seconds: 5),
+          );
+          return;
+        }
+      }
 
       await _db
           .collection('children')
