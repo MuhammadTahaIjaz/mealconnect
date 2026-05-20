@@ -45,13 +45,13 @@ class AuthService {
     required String cafeteriaName,
     required String email,
     required String password,
+    required String schoolId,
   }) async {
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
-
       final uid = credential.user!.uid;
       await credential.user!.updateDisplayName(name);
 
@@ -60,6 +60,7 @@ class AuthService {
         'name': name,
         'email': email,
         'role': 'cafeteria',
+        'schoolId': schoolId,
         'timestamp': FieldValue.serverTimestamp(),
         'lastLogin': FieldValue.serverTimestamp(),
       });
@@ -68,13 +69,40 @@ class AuthService {
         'cafeteriaId': uid,
         'userId': uid,
         'cafeteriaName': cafeteriaName,
+        'schoolId': schoolId,
         'isVerified': false,
-        'schoolId': '',
+      });
+
+      // Notify the school's admin
+      final adminUid = await _getSchoolAdminUid(schoolId);
+      await _firestore.collection('notifications').add({
+        'userId': adminUid ?? 'admin',
+        'title': 'New Cafeteria Registration',
+        'message': '$cafeteriaName has registered and is awaiting verification.',
+        'type': 'new_cafeteria_request',
+        'isRead': false,
+        'timestamp': FieldValue.serverTimestamp(),
       });
 
       return null;
     } on FirebaseAuthException catch (e) {
       return _errorMessage(e.code);
+    }
+  }
+
+  static Future<String?> _getSchoolAdminUid(String schoolId) async {
+    if (schoolId.isEmpty) return null;
+    try {
+      final snap = await _firestore
+          .collection('admins')
+          .where('schoolId', isEqualTo: schoolId)
+          .limit(1)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      if (snap.docs.isEmpty) return null;
+      return snap.docs.first.data()['userId'] as String?;
+    } catch (_) {
+      return null;
     }
   }
 

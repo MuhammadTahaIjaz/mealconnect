@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../widgets/school_picker_field.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -25,6 +26,10 @@ class _SignUpScreenState extends State<SignUpScreen>
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
   String? _errorMessage;
+
+  String? _selectedSchoolId;
+  String? _selectedSchoolName;
+  bool _schoolError = false;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
@@ -65,7 +70,10 @@ class _SignUpScreenState extends State<SignUpScreen>
   }
 
   Future<void> _onSignUp() async {
-    if (!_formKey.currentState!.validate()) return;
+    final schoolValid = _selectedSchoolId != null;
+    setState(() => _schoolError = !schoolValid);
+    if (!_formKey.currentState!.validate() || !schoolValid) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -75,6 +83,7 @@ class _SignUpScreenState extends State<SignUpScreen>
       name: _nameController.text.trim(),
       email: _emailController.text.trim(),
       password: _passwordController.text,
+      schoolId: _selectedSchoolId!,
     );
 
     if (!mounted) return;
@@ -180,6 +189,27 @@ class _SignUpScreenState extends State<SignUpScreen>
               ),
             ),
             const SizedBox(height: 28),
+
+            // School picker
+            SchoolPickerField(
+              selectedId: _selectedSchoolId,
+              selectedName: _selectedSchoolName,
+              hasError: _schoolError,
+              onSelected: (id, name) =>
+                  setState(() {
+                    _selectedSchoolId = id;
+                    _selectedSchoolName = name;
+                    _schoolError = false;
+                  }),
+            ),
+            if (_schoolError) ...[
+              const SizedBox(height: 6),
+              const Text(
+                'Please select a school',
+                style: TextStyle(color: Color(0xFFE53935), fontSize: 12),
+              ),
+            ],
+            const SizedBox(height: 16),
 
             // Full name
             _buildInputField(

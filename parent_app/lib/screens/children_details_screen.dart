@@ -81,17 +81,20 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
       final db = FirebaseFirestore.instance;
       final batch = db.batch();
 
+      // Fetch parent's schoolId so children inherit it
+      final schoolId = await AuthService.getCurrentParentSchoolId();
+
       for (int i = 0; i < _childCount; i++) {
         final ref = db.collection('children').doc();
         batch.set(ref, {
           'childId': ref.id,
           'parentId': uid,
+          'schoolId': schoolId,
           'name': _nameControllers[i].text.trim(),
           'classRollNo': _idControllers[i].text.trim(),
           'schoolName': _sameSchool
               ? _sharedSchoolController.text.trim()
               : _schoolControllers[i].text.trim(),
-          'schoolId': '',
           'verificationStatus': 'pending',
           'createdAt': FieldValue.serverTimestamp(),
         });
@@ -99,13 +102,14 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
 
       await batch.commit();
 
-      // Notify admin of the new child verification requests
+      // Notify the school's admin of new child verification requests
       final childNames = List.generate(
         _childCount,
         (i) => _nameControllers[i].text.trim(),
       ).join(', ');
+      final adminUid = await AuthService.getSchoolAdminUidForCurrentParent();
       await FirebaseFirestore.instance.collection('notifications').add({
-        'userId': 'admin',
+        'userId': adminUid ?? 'admin',
         'title': 'New Child Verification Request',
         'message': '$childNames — verification required.',
         'type': 'new_child_request',

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import '../../auth/controllers/auth_controller.dart';
 
 class CafeteriaRecord {
   final String cafeteriaId;
@@ -36,10 +37,14 @@ class CafeteriasController extends GetxController {
   Future<void> fetchPendingCafeterias() async {
     isLoading.value = true;
     try {
-      final snapshot = await _db
+      final schoolId = Get.find<AuthController>().schoolId.value;
+      var query = _db
           .collection('cafeterias')
-          .where('isVerified', isEqualTo: false)
-          .get();
+          .where('isVerified', isEqualTo: false);
+      if (schoolId.isNotEmpty) {
+        query = query.where('schoolId', isEqualTo: schoolId);
+      }
+      final snapshot = await query.get();
 
       final records = <CafeteriaRecord>[];
       for (final doc in snapshot.docs) {
