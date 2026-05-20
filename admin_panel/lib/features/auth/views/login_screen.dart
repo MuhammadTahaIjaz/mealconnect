@@ -11,9 +11,15 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _passwordFocus = FocusNode();
+  final _emailController      = TextEditingController();
+  final _passwordController   = TextEditingController();
+  final _schoolNameController = TextEditingController();
+  final _branchController     = TextEditingController();
+
+  final _passwordFocus   = FocusNode();
+  final _schoolNameFocus = FocusNode();
+  final _branchFocus     = FocusNode();
+
   final _isSignUp = false.obs;
 
   late final AuthController _auth;
@@ -28,16 +34,25 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _schoolNameController.dispose();
+    _branchController.dispose();
     _passwordFocus.dispose();
+    _schoolNameFocus.dispose();
+    _branchFocus.dispose();
     super.dispose();
   }
 
   void _submit() {
     if (_auth.isLoading.value) return;
-    final email = _emailController.text.trim();
+    final email    = _emailController.text.trim();
     final password = _passwordController.text.trim();
     if (_isSignUp.value) {
-      _auth.signup(email, password);
+      _auth.signup(
+        email,
+        password,
+        _schoolNameController.text.trim(),
+        _branchController.text.trim(),
+      );
     } else {
       _auth.login(email, password);
     }
@@ -83,7 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 4),
                 Obx(() => Text(
-                      _isSignUp.value ? 'Create Admin Account' : 'Admin Panel',
+                      _isSignUp.value ? 'Create School Account' : 'Admin Panel',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontFamily: 'Poppins',
@@ -93,11 +108,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     )),
                 const SizedBox(height: 36),
 
+                // ── Email ────────────────────────────────────────────────────
                 _buildLabel('Email'),
                 const SizedBox(height: 6),
                 _buildTextField(
                   controller: _emailController,
-                  hint: 'admin@mealconnect.com',
+                  hint: 'admin@school.com',
                   icon: Icons.email_outlined,
                   textInputAction: TextInputAction.next,
                   onSubmitted: (_) =>
@@ -105,19 +121,59 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 20),
 
+                // ── Password ─────────────────────────────────────────────────
                 _buildLabel('Password'),
                 const SizedBox(height: 6),
-                _buildTextField(
-                  controller: _passwordController,
-                  hint: '••••••••',
-                  icon: Icons.lock_outline,
-                  obscure: true,
-                  focusNode: _passwordFocus,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _submit(),
-                ),
-                const SizedBox(height: 12),
+                Obx(() => _buildTextField(
+                      controller: _passwordController,
+                      hint: '••••••••',
+                      icon: Icons.lock_outline,
+                      obscure: true,
+                      focusNode: _passwordFocus,
+                      textInputAction: _isSignUp.value
+                          ? TextInputAction.next
+                          : TextInputAction.done,
+                      onSubmitted: _isSignUp.value
+                          ? (_) => FocusScope.of(context)
+                              .requestFocus(_schoolNameFocus)
+                          : (_) => _submit(),
+                    )),
 
+                // ── Sign-up only: School Name + Branch ────────────────────────
+                Obx(() => _isSignUp.value
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 20),
+                          _buildLabel('School Name'),
+                          const SizedBox(height: 6),
+                          _buildTextField(
+                            controller: _schoolNameController,
+                            hint: 'e.g. Beacon House',
+                            icon: Icons.school_outlined,
+                            focusNode: _schoolNameFocus,
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: (_) =>
+                                FocusScope.of(context).requestFocus(_branchFocus),
+                          ),
+                          const SizedBox(height: 20),
+                          _buildLabel('Branch Name (optional)'),
+                          const SizedBox(height: 6),
+                          _buildTextField(
+                            controller: _branchController,
+                            hint: 'e.g. Gulshan Campus',
+                            icon: Icons.location_on_outlined,
+                            focusNode: _branchFocus,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _submit(),
+                          ),
+                        ],
+                      )
+                    : const SizedBox.shrink()),
+
+                const SizedBox(height: 24),
+
+                // ── Error ─────────────────────────────────────────────────────
                 Obx(() => _auth.errorMessage.value.isNotEmpty
                     ? Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -133,6 +189,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       )
                     : const SizedBox.shrink()),
 
+                // ── Submit button ─────────────────────────────────────────────
                 Obx(() => _buildGradientButton(
                       label: _auth.isLoading.value
                           ? 'Please wait...'
@@ -142,6 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 20),
 
+                // ── Toggle login / signup ─────────────────────────────────────
                 Obx(() => GestureDetector(
                       onTap: () {
                         _isSignUp.value = !_isSignUp.value;

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 
 class NotificationRecord {
@@ -35,9 +36,10 @@ class NotificationsController extends GetxController {
   Future<void> fetchNotifications() async {
     isLoading.value = true;
     try {
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? 'admin';
       final snapshot = await _db
           .collection('notifications')
-          .where('userId', isEqualTo: 'admin')
+          .where('userId', isEqualTo: uid)
           .orderBy('timestamp', descending: true)
           .limit(50)
           .get();

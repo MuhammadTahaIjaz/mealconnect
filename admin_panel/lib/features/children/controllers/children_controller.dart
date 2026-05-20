@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import '../../auth/controllers/auth_controller.dart';
 import '../../../app/services/notification_service.dart';
 
 class ChildRecord {
@@ -38,10 +39,14 @@ class ChildrenController extends GetxController {
   Future<void> fetchPendingChildren() async {
     isLoading.value = true;
     try {
-      final snapshot = await _db
+      final schoolId = Get.find<AuthController>().schoolId.value;
+      var query = _db
           .collection('children')
-          .where('verificationStatus', isEqualTo: 'pending')
-          .get();
+          .where('verificationStatus', isEqualTo: 'pending');
+      if (schoolId.isNotEmpty) {
+        query = query.where('schoolId', isEqualTo: schoolId);
+      }
+      final snapshot = await query.get();
 
       final records = <ChildRecord>[];
       for (final doc in snapshot.docs) {

@@ -8,6 +8,8 @@ class AuthService {
   static User? get currentUser => _auth.currentUser;
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  // ── Sign In ───────────────────────────────────────────────────────────────
+
   static Future<String?> signIn({
     required String email,
     required String password,
@@ -40,38 +42,45 @@ class AuthService {
     }
   }
 
+  // ── Sign Up ───────────────────────────────────────────────────────────────
+
   static Future<String?> signUp({
     required String name,
     required String email,
     required String password,
+    required String schoolId,
   }) async {
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
+      final uid = credential.user!.uid;
       await credential.user!.updateDisplayName(name);
 
-      // Create parent document in Firestore
-      await _firestore.collection('users').doc(credential.user!.uid).set({
-        'userId': credential.user!.uid,
+      await _firestore.collection('users').doc(uid).set({
+        'userId': uid,
         'name': name,
         'email': email,
         'role': 'parent',
+        'schoolId': schoolId,
         'timestamp': FieldValue.serverTimestamp(),
         'lastLogin': FieldValue.serverTimestamp(),
       });
 
-      await _firestore.collection('parents').doc(credential.user!.uid).set({
-        'parentId': credential.user!.uid,
-        'userId': credential.user!.uid,
+      await _firestore.collection('parents').doc(uid).set({
+        'parentId': uid,
+        'userId': uid,
+        'schoolId': schoolId,
         'walletBalance': 0.0,
         'accountStatus': 'pending',
       });
 
-      // Notify admin of the new sign-up request
+      // Notify the school's admin
+      final adminUid = await _getSchoolAdminUid(schoolId);
+      final notifyTarget = adminUid ?? 'admin';
       await _firestore.collection('notifications').add({
-        'userId': 'admin',
+        'userId': notifyTarget,
         'title': 'New Parent Registration',
         'message': '$name has registered and is awaiting approval.',
         'type': 'new_parent_request',
@@ -82,6 +91,41 @@ class AuthService {
       return null;
     } on FirebaseAuthException catch (e) {
       return _errorMessage(e.code);
+    }
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /// Returns the Firebase UID of the admin for the given schoolId.
+  static Future<String?> _getSchoolAdminUid(String schoolId) async {
+    if (schoolId.isEmpty) return null;
+    try {
+      final snap = await _firestore
+          .collection('admins')
+          .where('schoolId', isEqualTo: schoolId)
+          .limit(1)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      if (snap.docs.isEmpty) return null;
+      return snap.docs.first.data()['userId'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Returns the current parent's schoolId from Firestore.
+  static Future<String> getCurrentParentSchoolId() async {
+    final uid = currentUser?.uid;
+    if (uid == null) return '';
+    try {
+      final doc = await _firestore
+          .collection('parents')
+          .doc(uid)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      return (doc.data()?['schoolId'] as String?) ?? '';
+    } catch (_) {
+      return '';
     }
   }
 
@@ -110,6 +154,12 @@ class AuthService {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Convenience: gets the admin UID for the current parent's school.
+  static Future<String?> getSchoolAdminUidForCurrentParent() async {
+    final schoolId = await getCurrentParentSchoolId();
+    return _getSchoolAdminUid(schoolId);
   }
 
   static Future<void> signOut() => _auth.signOut();

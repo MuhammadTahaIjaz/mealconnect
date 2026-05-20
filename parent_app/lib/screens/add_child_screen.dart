@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/auth_service.dart';
 
 class AddChildScreen extends StatefulWidget {
   const AddChildScreen({super.key});
@@ -41,21 +42,23 @@ class _AddChildScreenState extends State<AddChildScreen> {
       final ref = FirebaseFirestore.instance.collection('children').doc();
 
       final childName = _nameController.text.trim();
+      final schoolId = await AuthService.getCurrentParentSchoolId();
+      final adminUid = await AuthService.getSchoolAdminUidForCurrentParent();
 
       await ref.set({
         'childId': ref.id,
         'parentId': uid,
+        'schoolId': schoolId,
         'name': childName,
         'classRollNo': _idController.text.trim(),
         'schoolName': _schoolController.text.trim(),
-        'schoolId': '',
         'verificationStatus': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // Notify admin of the new child verification request
+      // Notify the school's admin of the new child verification request
       await FirebaseFirestore.instance.collection('notifications').add({
-        'userId': 'admin',
+        'userId': adminUid ?? 'admin',
         'title': 'New Child Verification Request',
         'message': '$childName — verification required.',
         'type': 'new_child_request',

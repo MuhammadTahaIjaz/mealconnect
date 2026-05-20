@@ -1,12 +1,41 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import '../../../app/routes/app_routes.dart';
 
 class AuthController extends GetxController {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final _auth = FirebaseAuth.instance;
+  final _db = FirebaseFirestore.instance;
 
-  final RxBool isLoading = false.obs;
-  final RxString errorMessage = ''.obs;
+  final isLoading = false.obs;
+  final errorMessage = ''.obs;
+
+  // Set after login/signup — used by all controllers to filter data.
+  final schoolId = ''.obs;
+  final schoolDisplayName = ''.obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Restore school info if admin is already signed in (e.g. page refresh).
+    _loadSchoolInfo();
+  }
+
+  Future<void> _loadSchoolInfo() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    try {
+      final doc = await _db.collection('admins').doc(user.uid).get();
+      if (!doc.exists) return;
+      final sid = (doc.data()?['schoolId'] as String?) ?? '';
+      schoolId.value = sid;
+      if (sid.isNotEmpty) {
+        final schoolDoc = await _db.collection('schools').doc(sid).get();
+        schoolDisplayName.value =
+            (schoolDoc.data()?['displayName'] as String?) ?? '';
+      }
+    } catch (_) {}
+  }
 
   Future<void> login(String email, String password) async {
     if (email.isEmpty || password.isEmpty) {
@@ -17,6 +46,7 @@ class AuthController extends GetxController {
     errorMessage.value = '';
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
+      await _loadSchoolInfo();
       Get.offAllNamed(AppRoutes.HOME);
     } on FirebaseAuthException catch (e) {
       errorMessage.value = _mapAuthError(e.code);
@@ -25,16 +55,58 @@ class AuthController extends GetxController {
     }
   }
 
-  Future<void> signup(String email, String password) async {
-    if (email.isEmpty || password.isEmpty) {
-      errorMessage.value = 'Please fill in all fields.';
+  Future<void> signup(
+    String email,
+    String password,
+    String schoolName,
+    String branch,
+  ) async {
+    if (email.isEmpty || password.isEmpty || schoolName.isEmpty) {
+      errorMessage.value = 'Email, password and school name are required.';
       return;
     }
     isLoading.value = true;
     errorMessage.value = '';
     try {
-      await _auth.createUserWithEmailAndPassword(
-          email: email, password: password);
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final uid = credential.user!.uid;
+      final displayName = branch.trim().isNotEmpty
+          ? '${schoolName.trim()} — ${branch.trim()}'
+          : schoolName.trim();
+
+      // Create school document (schoolId == admin uid for simplicity)
+      await _db.collection('schools').doc(uid).set({
+        'schoolId': uid,
+        'name': schoolName.trim(),
+        'branch': branch.trim(),
+        'displayName': displayName,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Create admin document
+      await _db.collection('admins').doc(uid).set({
+        'adminId': uid,
+        'userId': uid,
+        'schoolId': uid,
+        'role': 'school_admin',
+      });
+
+      // Create user document
+      await _db.collection('users').doc(uid).set({
+        'userId': uid,
+        'email': email,
+        'name': displayName,
+        'role': 'admin',
+        'timestamp': FieldValue.serverTimestamp(),
+        'lastLogin': FieldValue.serverTimestamp(),
+      });
+
+      schoolId.value = uid;
+      schoolDisplayName.value = displayName;
+
       Get.offAllNamed(AppRoutes.HOME);
     } on FirebaseAuthException catch (e) {
       errorMessage.value = _mapAuthError(e.code);
@@ -44,6 +116,8 @@ class AuthController extends GetxController {
   }
 
   Future<void> logout() async {
+    schoolId.value = '';
+    schoolDisplayName.value = '';
     await _auth.signOut();
     Get.offAllNamed(AppRoutes.LOGIN);
   }
