@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../widgets/school_picker_field.dart';
+import '../../shared/widgets/school_picker_field.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
