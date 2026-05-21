@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,6 +15,8 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+
+  String _nextRoute = '/cafeteria-signin';
 
   @override
   void initState() {
@@ -30,15 +34,35 @@ class _SplashScreenState extends State<SplashScreen>
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.2),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    ).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     _controller.forward();
 
-    Timer(const Duration(seconds: 3), () {
+    Future.wait([
+      Future.delayed(const Duration(milliseconds: 2500)),
+      _resolveRoute(),
+    ]).then((_) {
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/cafeteria-signin');
+        Navigator.pushReplacementNamed(context, _nextRoute);
       }
     });
+  }
+
+  Future<void> _resolveRoute() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _nextRoute = '/cafeteria-signin';
+      return;
+    }
+    try {
+      final status = await AuthService.getCafeteriaStatus(user.uid);
+      _nextRoute = status == 'approved'
+          ? '/cafeteria-home'
+          : '/cafeteria-pending';
+    } catch (_) {
+      _nextRoute = '/cafeteria-signin';
+    }
   }
 
   @override

@@ -5,6 +5,7 @@ import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
 import 'screens/sign_in_screen.dart';
 import 'screens/sign_up_screen.dart';
+import 'screens/pending_approval_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,11 +31,12 @@ class MealConnectCafeteriaApp extends StatelessWidget {
       ),
       initialRoute: '/splash',
       routes: {
-        '/splash':           (context) => const SplashScreen(),
-        '/cafeteria-signin': (context) => const SignInScreen(),
-        '/cafeteria-signup': (context) => const SignUpScreen(),
+        '/splash':             (context) => const SplashScreen(),
+        '/cafeteria-signin':   (context) => const SignInScreen(),
+        '/cafeteria-signup':   (context) => const SignUpScreen(),
+        '/cafeteria-pending':  (context) => const PendingApprovalScreen(),
         // Routes to be added as screens are built:
-        // '/cafeteria-home':   (context) => const CafeteriaHomeScreen(),
+        // '/cafeteria-home':  (context) => const CafeteriaHomeScreen(),
       },
     );
   }

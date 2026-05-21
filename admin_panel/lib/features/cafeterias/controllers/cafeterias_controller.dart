@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import '../../auth/controllers/auth_controller.dart';
+import '../../../app/services/notification_service.dart';
+import '../../../app/services/email_service.dart';
 
 class CafeteriaRecord {
   final String cafeteriaId;
@@ -40,7 +42,7 @@ class CafeteriasController extends GetxController {
       final schoolId = Get.find<AuthController>().schoolId.value;
       var query = _db
           .collection('cafeterias')
-          .where('isVerified', isEqualTo: false);
+          .where('accountStatus', isEqualTo: 'pending');
       if (schoolId.isNotEmpty) {
         query = query.where('schoolId', isEqualTo: schoolId);
       }
@@ -49,26 +51,26 @@ class CafeteriasController extends GetxController {
       final records = <CafeteriaRecord>[];
       for (final doc in snapshot.docs) {
         final data = doc.data();
-        final userId = data['userId'] ?? '';
+        final userId = (data['userId'] as String?) ?? '';
         String ownerName = '';
         String email = '';
 
         if (userId.isNotEmpty) {
           final userDoc = await _db.collection('users').doc(userId).get();
           if (userDoc.exists) {
-            ownerName = userDoc.data()?['name'] ?? '';
-            email = userDoc.data()?['email'] ?? '';
+            ownerName = (userDoc.data()?['name'] as String?) ?? '';
+            email = (userDoc.data()?['email'] as String?) ?? '';
           }
         }
 
         records.add(CafeteriaRecord(
           cafeteriaId: doc.id,
           userId: userId,
-          cafeteriaName: data['cafeteriaName'] ?? '',
+          cafeteriaName: (data['cafeteriaName'] as String?) ?? '',
           ownerName: ownerName,
           email: email,
-          isVerified: data['isVerified'] ?? false,
-          timestamp: data['timestamp'],
+          isVerified: (data['isVerified'] as bool?) ?? false,
+          timestamp: data['timestamp'] as Timestamp?,
         ));
       }
       cafeterias.value = records;
@@ -80,25 +82,67 @@ class CafeteriasController extends GetxController {
 
   Future<void> approveCafeteria(String cafeteriaId) async {
     try {
-      await _db
-          .collection('cafeterias')
-          .doc(cafeteriaId)
-          .update({'isVerified': true});
+      final cafeteria =
+          cafeterias.firstWhere((c) => c.cafeteriaId == cafeteriaId);
+
+      await _db.collection('cafeterias').doc(cafeteriaId).update({
+        'isVerified': true,
+        'accountStatus': 'approved',
+      });
+
+      await NotificationService.notifyUser(
+        userId: cafeteria.userId,
+        title: 'Cafeteria Approved',
+        message:
+            '${cafeteria.cafeteriaName} has been verified. You can now sign in and use the app.',
+        type: 'cafeteria_approved',
+      );
+
+      await EmailService.sendParentStatusEmail(
+        email: cafeteria.email,
+        name: cafeteria.ownerName.isNotEmpty
+            ? cafeteria.ownerName
+            : cafeteria.cafeteriaName,
+        status: 'approved',
+      );
+
       cafeterias.removeWhere((c) => c.cafeteriaId == cafeteriaId);
       Get.snackbar('Approved', 'Cafeteria has been verified.',
           snackPosition: SnackPosition.BOTTOM);
-    } catch (e) {
+    } catch (_) {
       Get.snackbar('Error', 'Failed to approve cafeteria.');
     }
   }
 
   Future<void> rejectCafeteria(String cafeteriaId) async {
     try {
-      await _db.collection('cafeterias').doc(cafeteriaId).delete();
+      final cafeteria =
+          cafeterias.firstWhere((c) => c.cafeteriaId == cafeteriaId);
+
+      await _db.collection('cafeterias').doc(cafeteriaId).update({
+        'accountStatus': 'rejected',
+      });
+
+      await NotificationService.notifyUser(
+        userId: cafeteria.userId,
+        title: 'Cafeteria Not Approved',
+        message:
+            '${cafeteria.cafeteriaName}\'s registration was not approved. Please contact the school admin for more information.',
+        type: 'cafeteria_rejected',
+      );
+
+      await EmailService.sendParentStatusEmail(
+        email: cafeteria.email,
+        name: cafeteria.ownerName.isNotEmpty
+            ? cafeteria.ownerName
+            : cafeteria.cafeteriaName,
+        status: 'rejected',
+      );
+
       cafeterias.removeWhere((c) => c.cafeteriaId == cafeteriaId);
-      Get.snackbar('Rejected', 'Cafeteria has been removed.',
+      Get.snackbar('Rejected', 'Cafeteria registration has been rejected.',
           snackPosition: SnackPosition.BOTTOM);
-    } catch (e) {
+    } catch (_) {
       Get.snackbar('Error', 'Failed to reject cafeteria.');
     }
   }
