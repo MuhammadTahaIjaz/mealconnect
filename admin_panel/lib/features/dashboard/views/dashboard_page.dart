@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../widgets/custom_hover_button.dart';
 import '../controllers/dashboard_controller.dart';
+import '../../home/controllers/home_controller.dart';
 
 class DashboardPage extends GetView<DashboardController> {
   const DashboardPage({super.key});
@@ -168,12 +169,12 @@ class DashboardPage extends GetView<DashboardController> {
             _buildActionCard(
               label: 'Verify Parents',
               icon: Icons.people,
-              onTap: () => Get.find<DashboardController>(),
+              onTap: () => Get.find<HomeController>().selectIndex(1),
             ),
             _buildActionCard(
               label: 'Verify Cafeterias',
               icon: Icons.store,
-              onTap: () {},
+              onTap: () => Get.find<HomeController>().selectIndex(2),
             ),
             _buildActionCard(
               label: 'Refresh Stats',
