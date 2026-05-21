@@ -19,7 +19,8 @@ import 'parent/screens/home_shell.dart'                  as parent_home;
 import 'cafeteria/screens/sign_in_screen.dart'           as cafeteria_sign_in;
 import 'cafeteria/screens/sign_up_screen.dart'           as cafeteria_sign_up;
 import 'cafeteria/screens/pending_approval_screen.dart'  as cafeteria_pending;
-import 'cafeteria/screens/home_screen.dart'              as cafeteria_home;
+import 'cafeteria/screens/home_shell.dart'               as cafeteria_home;
+import 'cafeteria/screens/add_meal_screen.dart'          as cafeteria_add_meal;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,8 +61,9 @@ class MealConnectApp extends StatelessWidget {
         // ── Cafeteria ─────────────────────────────────────────────────────
         '/cafeteria-signin':        (context) => const cafeteria_sign_in.SignInScreen(),
         '/cafeteria-signup':        (context) => const cafeteria_sign_up.SignUpScreen(),
-        '/cafeteria-pending':       (context) => const cafeteria_pending.PendingApprovalScreen(),
-        '/cafeteria-home':          (context) => const cafeteria_home.HomeScreen(),
+        '/cafeteria-pending':        (context) => const cafeteria_pending.PendingApprovalScreen(),
+        '/cafeteria-home':           (context) => const cafeteria_home.HomeShell(),
+        '/cafeteria-add-meal':       (context) => const cafeteria_add_meal.AddMealScreen(),
       },
     );
   }
