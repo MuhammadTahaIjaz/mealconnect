@@ -71,6 +71,7 @@ class AuthService {
         'cafeteriaName': cafeteriaName,
         'schoolId': schoolId,
         'isVerified': false,
+        'accountStatus': 'pending',
       });
 
       // Notify the school's admin
@@ -103,6 +104,19 @@ class AuthService {
       return snap.docs.first.data()['userId'] as String?;
     } catch (_) {
       return null;
+    }
+  }
+
+  static Future<String> getCafeteriaStatus(String uid) async {
+    try {
+      final doc = await _firestore
+          .collection('cafeterias')
+          .doc(uid)
+          .get()
+          .timeout(const Duration(seconds: 10));
+      return (doc.data()?['accountStatus'] as String?) ?? 'pending';
+    } catch (_) {
+      return 'pending';
     }
   }
 

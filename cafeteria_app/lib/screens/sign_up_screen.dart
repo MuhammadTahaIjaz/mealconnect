@@ -97,7 +97,7 @@ class _SignUpScreenState extends State<SignUpScreen>
     if (error != null) {
       setState(() => _errorMessage = error);
     } else {
-      Navigator.pushReplacementNamed(context, '/cafeteria-home');
+      Navigator.pushReplacementNamed(context, '/cafeteria-pending');
     }
   }
 

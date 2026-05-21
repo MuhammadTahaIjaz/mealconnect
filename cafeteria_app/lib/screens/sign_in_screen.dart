@@ -72,7 +72,20 @@ class _SignInScreenState extends State<SignInScreen>
     if (error != null) {
       setState(() => _errorMessage = error);
     } else {
-      Navigator.pushReplacementNamed(context, '/cafeteria-home');
+      final uid = AuthService.currentUser!.uid;
+      final status = await AuthService.getCafeteriaStatus(uid);
+      if (!mounted) return;
+
+      if (status == 'approved') {
+        Navigator.pushReplacementNamed(context, '/cafeteria-home');
+      } else if (status == 'rejected') {
+        await AuthService.signOut();
+        setState(() => _errorMessage =
+            'Your cafeteria registration was not approved. '
+            'Please contact the school admin for more information.');
+      } else {
+        Navigator.pushReplacementNamed(context, '/cafeteria-pending');
+      }
     }
   }
 
