@@ -17,15 +17,17 @@ class _AddMealScreenState extends State<AddMealScreen> {
   static const _orange = Color(0xFFFF8C00);
 
   static const _days = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-    'Friday', 'Saturday', 'Sunday',
+    'Monday', 'Tuesday', 'Wednesday',
+    'Thursday', 'Friday', 'Saturday', 'Sunday',
   ];
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
 
-  String _availability = 'Monday';
+  final Set<String> _selectedDays = {'Monday'};
+  bool _daysError = false;
+
   File? _imageFile;
   bool _isLoading = false;
   String? _errorMessage;
@@ -84,7 +86,10 @@ class _AddMealScreenState extends State<AddMealScreen> {
   }
 
   Future<void> _onSubmit() async {
-    if (!_formKey.currentState!.validate()) return;
+    final daysValid = _selectedDays.isNotEmpty;
+    setState(() => _daysError = !daysValid);
+    if (!_formKey.currentState!.validate() || !daysValid) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -95,11 +100,9 @@ class _AddMealScreenState extends State<AddMealScreen> {
       final db = FirebaseFirestore.instance;
       final ref = db.collection('meals').doc();
 
-      // Fetch cafeteria's schoolId
       final cafDoc = await db.collection('cafeterias').doc(uid).get();
       final schoolId = (cafDoc.data()?['schoolId'] as String?) ?? '';
 
-      // Upload image if selected
       String imageUrl = '';
       if (_imageFile != null) {
         final storageRef = FirebaseStorage.instance
@@ -114,7 +117,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
         'cafeteriaId': uid,
         'schoolId': schoolId,
         'mealName': _nameController.text.trim(),
-        'availability': _availability,
+        'availability': _selectedDays.toList(),
         'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
         'isAvailable': true,
         'imageUrl': imageUrl,
@@ -174,8 +177,6 @@ class _AddMealScreenState extends State<AddMealScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-
-                      // Meal Name
                       _buildShadowField(
                         controller: _nameController,
                         label: 'Meal Name',
@@ -185,12 +186,8 @@ class _AddMealScreenState extends State<AddMealScreen> {
                             : null,
                       ),
                       const SizedBox(height: 14),
-
-                      // Availability (day dropdown)
-                      _buildDropdownField(),
+                      _buildDaySelector(),
                       const SizedBox(height: 14),
-
-                      // Price
                       _buildShadowField(
                         controller: _priceController,
                         label: 'Price',
@@ -208,34 +205,110 @@ class _AddMealScreenState extends State<AddMealScreen> {
                         },
                       ),
                       const SizedBox(height: 14),
-
-                      // Image picker
                       _buildImagePicker(),
-
                       if (_errorMessage != null) ...[
                         const SizedBox(height: 14),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFEBEE),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            _errorMessage!,
-                            style: const TextStyle(
-                                color: Color(0xFFE53935), fontSize: 13),
-                          ),
-                        ),
+                        _buildErrorBox(_errorMessage!),
                       ],
                       const SizedBox(height: 20),
                     ],
                   ),
                 ),
               ),
-              _buildSubmitButton(),
+              _buildSubmitButton(label: 'SUBMIT', onTap: _onSubmit),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDaySelector() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: _daysError
+            ? Border.all(color: const Color(0xFFE53935))
+            : null,
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Availability',
+            style: TextStyle(color: Color(0xFF9B9B9B), fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          ..._days.map((day) => _dayCheckbox(day)),
+          if (_daysError)
+            const Padding(
+              padding: EdgeInsets.only(top: 4, bottom: 4),
+              child: Text(
+                'Select at least one day',
+                style: TextStyle(
+                    color: Color(0xFFE53935), fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dayCheckbox(String day) {
+    final selected = _selectedDays.contains(day);
+    return InkWell(
+      onTap: () => setState(() {
+        if (selected) {
+          _selectedDays.remove(day);
+        } else {
+          _selectedDays.add(day);
+        }
+        _daysError = _selectedDays.isEmpty;
+      }),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                color: selected ? _pink : Colors.transparent,
+                border: Border.all(
+                  color: selected ? _pink : const Color(0xFFCCCCCC),
+                  width: 1.5,
+                ),
+              ),
+              child: selected
+                  ? const Icon(Icons.check,
+                      color: Colors.white, size: 14)
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              day,
+              style: TextStyle(
+                fontSize: 14,
+                color: selected
+                    ? const Color(0xFF1A1A1A)
+                    : const Color(0xFF9B9B9B),
+                fontWeight: selected
+                    ? FontWeight.w500
+                    : FontWeight.w400,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -295,8 +368,8 @@ class _AddMealScreenState extends State<AddMealScreen> {
           ),
           focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                const BorderSide(color: Color(0xFFE53935), width: 1.5),
+            borderSide: const BorderSide(
+                color: Color(0xFFE53935), width: 1.5),
           ),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -305,45 +378,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
     );
   }
 
-  Widget _buildDropdownField() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.07),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-      child: DropdownButtonFormField<String>(
-        value: _availability,
-        decoration: const InputDecoration(
-          labelText: 'Availability',
-          labelStyle:
-              TextStyle(color: Color(0xFF9B9B9B), fontSize: 13),
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(vertical: 12),
-        ),
-        items: _days
-            .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-            .toList(),
-        onChanged: (v) => setState(() => _availability = v!),
-        style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF1A1A1A)),
-        dropdownColor: Colors.white,
-        icon: const Icon(Icons.keyboard_arrow_down,
-            color: Color(0xFF9B9B9B)),
-      ),
-    );
-  }
-
-  Widget _buildImagePicker() {
+  Widget _buildImagePicker({String? existingUrl}) {
     return GestureDetector(
       onTap: _pickImage,
       child: Container(
@@ -352,35 +387,81 @@ class _AddMealScreenState extends State<AddMealScreen> {
         decoration: BoxDecoration(
           color: const Color(0xFFF7F8FC),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFEEEEEE), width: 1.5),
+          border:
+              Border.all(color: const Color(0xFFEEEEEE), width: 1.5),
         ),
         child: _imageFile != null
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(13),
-                child: Image.file(
-                  _imageFile!,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                ),
+                child: Image.file(_imageFile!,
+                    fit: BoxFit.cover, width: double.infinity),
               )
-            : const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.camera_alt_outlined,
-                      size: 36, color: Color(0xFFBBBBBB)),
-                  SizedBox(height: 8),
-                  Text(
-                    'Tap to add meal photo',
-                    style: TextStyle(
-                        color: Color(0xFF9B9B9B), fontSize: 13),
+            : existingUrl != null && existingUrl.isNotEmpty
+                ? Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(13),
+                        child: Image.network(existingUrl,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity),
+                      ),
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Tap to change',
+                            style: TextStyle(
+                                color: Colors.white, fontSize: 11),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.camera_alt_outlined,
+                          size: 36, color: Color(0xFFBBBBBB)),
+                      SizedBox(height: 8),
+                      Text(
+                        'Tap to add meal photo',
+                        style: TextStyle(
+                            color: Color(0xFF9B9B9B), fontSize: 13),
+                      ),
+                    ],
                   ),
-                ],
-              ),
       ),
     );
   }
 
-  Widget _buildSubmitButton() {
+  Widget _buildErrorBox(String message) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        message,
+        style:
+            const TextStyle(color: Color(0xFFE53935), fontSize: 13),
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton({
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
@@ -390,7 +471,8 @@ class _AddMealScreenState extends State<AddMealScreen> {
         child: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(_pink),
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(_pink),
                 ),
               )
             : DecoratedBox(
@@ -403,7 +485,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
                   borderRadius: BorderRadius.circular(27),
                 ),
                 child: ElevatedButton(
-                  onPressed: _onSubmit,
+                  onPressed: onTap,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
@@ -411,9 +493,9 @@ class _AddMealScreenState extends State<AddMealScreen> {
                       borderRadius: BorderRadius.circular(27),
                     ),
                   ),
-                  child: const Text(
-                    'SUBMIT',
-                    style: TextStyle(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 2.0,
