@@ -54,7 +54,7 @@ class _TypeSelectionScreenState extends State<TypeSelectionScreen>
     if (_selectedType == 'parents') {
       Navigator.pushReplacementNamed(context, '/parent-signin');
     } else {
-      Navigator.pushReplacementNamed(context, '/cafeteria-login');
+      Navigator.pushReplacementNamed(context, '/cafeteria-signin');
     }
   }
 

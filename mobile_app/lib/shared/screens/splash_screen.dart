@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/auth_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../parent/services/auth_service.dart' as parent_auth;
+import '../../cafeteria/services/auth_service.dart' as cafeteria_auth;
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,6 +18,8 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _imageSlideAnimation;
+
+  String _nextRoute = '/type-selection';
 
   @override
   void initState() {
@@ -52,16 +56,13 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    // Run minimum splash duration and auth check in parallel
     Future.wait([
       Future.delayed(const Duration(milliseconds: 2500)),
       _resolveRoute(),
     ]).then((_) {
-      if (mounted) _navigate();
+      if (mounted) Navigator.pushReplacementNamed(context, _nextRoute);
     });
   }
-
-  String _nextRoute = '/type-selection';
 
   Future<void> _resolveRoute() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -71,21 +72,36 @@ class _SplashScreenState extends State<SplashScreen>
     }
 
     try {
-      final status = await AuthService.getAccountStatus(user.uid);
-      if (status == 'approved') {
-        final hasChildren = await AuthService.hasChildren(user.uid);
-        _nextRoute = hasChildren ? '/parent-home' : '/parent-children-details';
+      // Check the user's role to route them to the correct section
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get()
+          .timeout(const Duration(seconds: 10));
+
+      final role = (doc.data()?['role'] as String?) ?? '';
+
+      if (role == 'cafeteria') {
+        final status =
+            await cafeteria_auth.AuthService.getCafeteriaStatus(user.uid);
+        _nextRoute =
+            status == 'approved' ? '/cafeteria-home' : '/cafeteria-pending';
       } else {
-        // pending or rejected → go to pending screen (shows rejection too)
-        _nextRoute = '/parent-pending';
+        // Parent flow
+        final status =
+            await parent_auth.AuthService.getAccountStatus(user.uid);
+        if (status == 'approved') {
+          final hasChildren =
+              await parent_auth.AuthService.hasChildren(user.uid);
+          _nextRoute =
+              hasChildren ? '/parent-home' : '/parent-children-details';
+        } else {
+          _nextRoute = '/parent-pending';
+        }
       }
     } catch (_) {
       _nextRoute = '/type-selection';
     }
-  }
-
-  void _navigate() {
-    Navigator.pushReplacementNamed(context, _nextRoute);
   }
 
   @override
@@ -171,10 +187,7 @@ class _SplashScreenState extends State<SplashScreen>
                   return const SizedBox(
                     height: 300,
                     child: Center(
-                      child: Text(
-                        '🍽️',
-                        style: TextStyle(fontSize: 80),
-                      ),
+                      child: Text('🍽️', style: TextStyle(fontSize: 80)),
                     ),
                   );
                 },
