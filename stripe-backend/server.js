@@ -85,5 +85,54 @@ app.post('/delete-customer', async (req, res) => {
   }
 });
 
+// Create a Stripe Express connected account + onboarding link for a cafeteria
+// Pass accountId if the cafeteria already has one (regenerates the link)
+app.post('/create-account-link', async (req, res) => {
+  try {
+    const { cafeteriaId, email, accountId } = req.body;
+    let stripeAccountId = accountId;
+
+    if (!stripeAccountId) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        email,
+        metadata: { cafeteriaId },
+        capabilities: { transfers: { requested: true } },
+      });
+      stripeAccountId = account.id;
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: stripeAccountId,
+      refresh_url: 'https://mealconnect.app/reauth',
+      return_url: 'https://mealconnect.app/connect-return',
+      type: 'account_onboarding',
+    });
+
+    res.json({ accountId: stripeAccountId, url: accountLink.url });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Transfer meal payment to cafeteria on delivery
+app.post('/transfer-to-cafeteria', async (req, res) => {
+  try {
+    const { amountCents, cafeteriaAccountId, selectionId } = req.body;
+    if (!amountCents || !cafeteriaAccountId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    const transfer = await stripe.transfers.create({
+      amount: amountCents,
+      currency: 'usd',
+      destination: cafeteriaAccountId,
+      metadata: { selectionId: selectionId || '' },
+    });
+    res.json({ transferId: transfer.id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`MealConnect Stripe backend running on port ${PORT}`));
