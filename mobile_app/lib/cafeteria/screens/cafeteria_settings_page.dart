@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import 'cafeteria_profile_page.dart';
 import 'cafeteria_privacy_policy_page.dart';
 import 'cafeteria_terms_conditions_page.dart';
+import 'stripe_connect_page.dart';
 
 class CafeteriaSettingsPage extends StatelessWidget {
   const CafeteriaSettingsPage({super.key});
@@ -33,6 +34,15 @@ class CafeteriaSettingsPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                     builder: (_) => const CafeteriaProfilePage()),
+              ),
+            ),
+            _buildDivider(),
+            _buildItem(
+              label: 'Bank Account',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const StripeConnectPage()),
               ),
             ),
             _buildDivider(),

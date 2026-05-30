@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'active_orders_page.dart';
 import 'meal_management_page.dart';
 import 'cafeteria_history_page.dart';
-import 'identification_page.dart';
 import 'cafeteria_notifications_page.dart';
 import 'cafeteria_settings_page.dart';
 
@@ -16,9 +16,9 @@ class _HomeShellState extends State<HomeShell> {
   int _currentIndex = 0;
 
   final List<Widget> _pages = const [
+    ActiveOrdersPage(),
     MealManagementPage(),
     CafeteriaHistoryPage(),
-    IdentificationPage(),
     CafeteriaNotificationsPage(),
     CafeteriaSettingsPage(),
   ];
@@ -53,10 +53,14 @@ class _HomeShellState extends State<HomeShell> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _navItem(0, Icons.home_outlined, Icons.home),
-              _navItem(1, Icons.receipt_long_outlined, Icons.receipt_long),
-              _navItem(2, Icons.badge_outlined, Icons.badge),
-              _navItem(3, Icons.notifications_outlined, Icons.notifications),
+              _navItem(0, Icons.pending_actions_outlined,
+                  Icons.pending_actions),
+              _navItem(1, Icons.restaurant_menu_outlined,
+                  Icons.restaurant_menu),
+              _navItem(2, Icons.receipt_long_outlined,
+                  Icons.receipt_long),
+              _navItem(3, Icons.notifications_outlined,
+                  Icons.notifications),
               _navItem(4, Icons.settings_outlined, Icons.settings),
             ],
           ),
