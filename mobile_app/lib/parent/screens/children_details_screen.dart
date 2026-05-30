@@ -15,16 +15,13 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
   static const _orange = Color(0xFFFF8C00);
 
   final _formKey = GlobalKey<FormState>();
-  final _sharedSchoolController = TextEditingController();
 
   int _childCount = 1;
-  bool _sameSchool = true;
   bool _isLoading = false;
   String? _errorMessage;
 
   final List<TextEditingController> _nameControllers = [];
   final List<TextEditingController> _idControllers = [];
-  final List<TextEditingController> _schoolControllers = [];
 
   @override
   void initState() {
@@ -34,12 +31,7 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
 
   @override
   void dispose() {
-    _sharedSchoolController.dispose();
-    for (final c in [
-      ..._nameControllers,
-      ..._idControllers,
-      ..._schoolControllers,
-    ]) {
+    for (final c in [..._nameControllers, ..._idControllers]) {
       c.dispose();
     }
     super.dispose();
@@ -48,7 +40,6 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
   void _addControllers() {
     _nameControllers.add(TextEditingController());
     _idControllers.add(TextEditingController());
-    _schoolControllers.add(TextEditingController());
   }
 
   void _removeControllers() {
@@ -56,8 +47,6 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
     _nameControllers.removeLast();
     _idControllers.last.dispose();
     _idControllers.removeLast();
-    _schoolControllers.last.dispose();
-    _schoolControllers.removeLast();
   }
 
   void _onCountChange(int delta) {
@@ -79,22 +68,25 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
     try {
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final db = FirebaseFirestore.instance;
-      final batch = db.batch();
 
-      // Fetch parent's schoolId so children inherit it
+      // Auto-fetch school info from parent's registration
       final schoolId = await AuthService.getCurrentParentSchoolId();
+      String schoolName = '';
+      if (schoolId.isNotEmpty) {
+        final schoolDoc = await db.collection('schools').doc(schoolId).get();
+        schoolName = (schoolDoc.data()?['displayName'] as String?) ?? '';
+      }
 
+      final batch = db.batch();
       for (int i = 0; i < _childCount; i++) {
         final ref = db.collection('children').doc();
         batch.set(ref, {
           'childId': ref.id,
           'parentId': uid,
           'schoolId': schoolId,
+          'schoolName': schoolName,
           'name': _nameControllers[i].text.trim(),
           'classRollNo': _idControllers[i].text.trim(),
-          'schoolName': _sameSchool
-              ? _sharedSchoolController.text.trim()
-              : _schoolControllers[i].text.trim(),
           'verificationStatus': 'pending',
           'createdAt': FieldValue.serverTimestamp(),
         });
@@ -102,13 +94,12 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
 
       await batch.commit();
 
-      // Notify the school's admin of new child verification requests
       final childNames = List.generate(
         _childCount,
         (i) => _nameControllers[i].text.trim(),
       ).join(', ');
       final adminUid = await AuthService.getSchoolAdminUidForCurrentParent();
-      await FirebaseFirestore.instance.collection('notifications').add({
+      await db.collection('notifications').add({
         'userId': adminUid ?? 'admin',
         'title': 'New Child Verification Request',
         'message': '$childNames — verification required.',
@@ -150,8 +141,6 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 36),
-
-                      // ── Title ───────────────────────────────────────────
                       const Center(
                         child: Text(
                           'CHILDREN DETAILS',
@@ -164,34 +153,9 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
                         ),
                       ),
                       const SizedBox(height: 28),
-
-                      // ── No. of Children ──────────────────────────────────
                       _buildCountCard(),
-                      const SizedBox(height: 16),
-
-                      // ── Same School Toggle ────────────────────────────────
-                      _buildSameSchoolRow(),
                       const SizedBox(height: 24),
-
-                      // ── Child Forms ──────────────────────────────────────
                       ...List.generate(_childCount, _buildChildForm),
-
-                      // ── Shared school name ────────────────────────────────
-                      if (_sameSchool) ...[
-                        _buildShadowField(
-                          controller: _sharedSchoolController,
-                          label: 'School / Collage Name',
-                          validator: (v) {
-                            if (v == null || v.trim().isEmpty) {
-                              return 'School name is required';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-
-                      // ── Error ─────────────────────────────────────────────
                       if (_errorMessage != null) ...[
                         const SizedBox(height: 12),
                         Container(
@@ -215,8 +179,6 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
                   ),
                 ),
               ),
-
-              // ── Fixed CONTINUE button ─────────────────────────────────────
               _buildContinueButton(),
               _buildSkipButton(),
             ],
@@ -225,8 +187,6 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
       ),
     );
   }
-
-  // ── No. of Children card ─────────────────────────────────────────────────
 
   Widget _buildCountCard() {
     return Container(
@@ -253,7 +213,6 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
               color: Color(0xFF1A1A1A),
             ),
           ),
-          // Stepper pill: "- 2 +"
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
@@ -262,11 +221,7 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
             child: Row(
               children: [
                 _stepperBtn('-', () => _onCountChange(-1)),
-                Container(
-                  width: 1,
-                  height: 28,
-                  color: const Color(0xFFEEEEEE),
-                ),
+                Container(width: 1, height: 28, color: const Color(0xFFEEEEEE)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: Text(
@@ -278,11 +233,7 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
                     ),
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: 28,
-                  color: const Color(0xFFEEEEEE),
-                ),
+                Container(width: 1, height: 28, color: const Color(0xFFEEEEEE)),
                 _stepperBtn('+', () => _onCountChange(1)),
               ],
             ),
@@ -312,87 +263,9 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
     );
   }
 
-  // ── Same School row ───────────────────────────────────────────────────────
-
-  Widget _buildSameSchoolRow() {
-    return Row(
-      children: [
-        const Expanded(
-          child: Text(
-            'All Children are in same School?',
-            style: TextStyle(
-              fontSize: 13,
-              color: Color(0xFF1A1A1A),
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        // "No" option
-        GestureDetector(
-          onTap: () => setState(() => _sameSchool = false),
-          child: Column(
-            children: [
-              _radioCircle(selected: !_sameSchool),
-              const SizedBox(height: 3),
-              Text(
-                'No',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: !_sameSchool ? _orange : const Color(0xFF9B9B9B),
-                  fontWeight:
-                      !_sameSchool ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 16),
-        // "Yes" option
-        GestureDetector(
-          onTap: () => setState(() => _sameSchool = true),
-          child: Column(
-            children: [
-              _radioCircle(selected: _sameSchool),
-              const SizedBox(height: 3),
-              Text(
-                'Yes',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: _sameSchool ? _orange : const Color(0xFF9B9B9B),
-                  fontWeight:
-                      _sameSchool ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _radioCircle({required bool selected}) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: selected ? _orange : Colors.transparent,
-        border: Border.all(
-          color: selected ? _orange : const Color(0xFFCCCCCC),
-          width: 2,
-        ),
-      ),
-    );
-  }
-
-  // ── Child form block ──────────────────────────────────────────────────────
-
   Widget _buildChildForm(int index) {
     return Column(
       children: [
-        // Centered avatar
         Center(
           child: Container(
             width: 64,
@@ -409,8 +282,6 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
           ),
         ),
         const SizedBox(height: 16),
-
-        // Name field
         _buildShadowField(
           controller: _nameControllers[index],
           label: 'Children Name',
@@ -418,31 +289,16 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
               v == null || v.trim().isEmpty ? 'Name is required' : null,
         ),
         const SizedBox(height: 12),
-
-        // School ID field
         _buildShadowField(
           controller: _idControllers[index],
           label: 'Child School ID',
           validator: (v) =>
               v == null || v.trim().isEmpty ? 'School ID is required' : null,
         ),
-
-        // Per-child school name (when different schools)
-        if (!_sameSchool) ...[
-          const SizedBox(height: 12),
-          _buildShadowField(
-            controller: _schoolControllers[index],
-            label: 'School / Collage Name',
-            validator: (v) =>
-                v == null || v.trim().isEmpty ? 'School name is required' : null,
-          ),
-        ],
         const SizedBox(height: 24),
       ],
     );
   }
-
-  // ── Shadow text field (matches design: shadow instead of outline) ─────────
 
   Widget _buildShadowField({
     required TextEditingController controller,
@@ -509,8 +365,6 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
       ),
     );
   }
-
-  // ── Continue button fixed at bottom ───────────────────────────────────────
 
   Widget _buildContinueButton() {
     return Container(

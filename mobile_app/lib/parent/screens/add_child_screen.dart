@@ -17,7 +17,6 @@ class _AddChildScreenState extends State<AddChildScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _idController = TextEditingController();
-  final _schoolController = TextEditingController();
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -26,7 +25,6 @@ class _AddChildScreenState extends State<AddChildScreen> {
   void dispose() {
     _nameController.dispose();
     _idController.dispose();
-    _schoolController.dispose();
     super.dispose();
   }
 
@@ -45,13 +43,22 @@ class _AddChildScreenState extends State<AddChildScreen> {
       final schoolId = await AuthService.getCurrentParentSchoolId();
       final adminUid = await AuthService.getSchoolAdminUidForCurrentParent();
 
+      String schoolName = '';
+      if (schoolId.isNotEmpty) {
+        final schoolDoc = await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(schoolId)
+            .get();
+        schoolName = (schoolDoc.data()?['displayName'] as String?) ?? '';
+      }
+
       await ref.set({
         'childId': ref.id,
         'parentId': uid,
         'schoolId': schoolId,
         'name': childName,
         'classRollNo': _idController.text.trim(),
-        'schoolName': _schoolController.text.trim(),
+        'schoolName': schoolName,
         'verificationStatus': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -138,14 +145,6 @@ class _AddChildScreenState extends State<AddChildScreen> {
                         label: 'Child School ID',
                         validator: (v) => v == null || v.trim().isEmpty
                             ? 'School ID is required'
-                            : null,
-                      ),
-                      const SizedBox(height: 14),
-                      _buildField(
-                        controller: _schoolController,
-                        label: 'School / Collage Name',
-                        validator: (v) => v == null || v.trim().isEmpty
-                            ? 'School name is required'
                             : null,
                       ),
                       if (_errorMessage != null) ...[
