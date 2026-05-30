@@ -89,7 +89,10 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
     } catch (_) {
       // Falls through — user will see CardFormField
     } finally {
-      if (mounted) setState(() => _loadingCustomer = false);
+      if (mounted) setState(() {
+        _loadingCustomer = false;
+        if (_savedCard == null) { _useSavedCard = false; }
+      });
     }
   }
 
