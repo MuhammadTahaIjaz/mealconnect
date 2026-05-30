@@ -7,6 +7,13 @@ class CafeteriaNotificationsPage extends StatelessWidget {
 
   static const _pink = Color(0xFFFF3366);
 
+  void _markAsRead(String docId) {
+    FirebaseFirestore.instance
+        .collection('notifications')
+        .doc(docId)
+        .update({'isRead': true});
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser!.uid;
@@ -35,7 +42,8 @@ class CafeteriaNotificationsPage extends StatelessWidget {
                     .orderBy('timestamp', descending: true)
                     .snapshots(),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                  if (snapshot.connectionState ==
+                      ConnectionState.waiting) {
                     return const Center(
                       child: CircularProgressIndicator(
                         valueColor:
@@ -43,6 +51,7 @@ class CafeteriaNotificationsPage extends StatelessWidget {
                       ),
                     );
                   }
+
                   if (!snapshot.hasData ||
                       snapshot.data!.docs.isEmpty) {
                     return Center(
@@ -50,8 +59,7 @@ class CafeteriaNotificationsPage extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.notifications_off_outlined,
-                              size: 64,
-                              color: Colors.grey.shade300),
+                              size: 64, color: Colors.grey.shade300),
                           const SizedBox(height: 16),
                           const Text(
                             'No notifications yet.',
@@ -63,89 +71,111 @@ class CafeteriaNotificationsPage extends StatelessWidget {
                       ),
                     );
                   }
+
+                  final docs = snapshot.data!.docs;
                   return ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: snapshot.data!.docs.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: 1),
-                    itemBuilder: (context, i) {
-                      final data = snapshot.data!.docs[i].data()
-                          as Map<String, dynamic>;
-                      final title = (data['title'] as String?) ?? '';
-                      final message =
-                          (data['message'] as String?) ?? '';
-                      final isRead =
-                          (data['isRead'] as bool?) ?? true;
-                      return Container(
-                        color: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 16),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 46,
-                              height: 46,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: const Color(0xFFF7F8FC),
-                                border: Border.all(
-                                    color: const Color(0xFFEEEEEE)),
-                              ),
-                              child: const Icon(
-                                  Icons.notifications_outlined,
-                                  size: 22,
-                                  color: Color(0xFF9B9B9B)),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  if (title.isNotEmpty)
-                                    Text(
-                                      title,
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: isRead
-                                            ? FontWeight.w500
-                                            : FontWeight.w700,
-                                        color:
-                                            const Color(0xFF1A1A1A),
-                                      ),
-                                    ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    message,
-                                    style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Color(0xFF9B9B9B)),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (!isRead)
-                              Container(
-                                width: 8,
-                                height: 8,
-                                margin: const EdgeInsets.only(
-                                    top: 4, left: 8),
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: _pink,
-                                ),
-                              ),
-                          ],
-                        ),
-                      );
+                    padding:
+                        const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                    itemCount: docs.length,
+                    separatorBuilder: (_, __) => const Divider(
+                        height: 1, color: Color(0xFFF0F0F0)),
+                    itemBuilder: (context, index) {
+                      final doc = docs[index];
+                      final data =
+                          doc.data() as Map<String, dynamic>;
+                      return _buildNotificationItem(doc.id, data);
                     },
                   );
                 },
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationItem(
+      String docId, Map<String, dynamic> data) {
+    final title = data['title'] as String? ?? '';
+    final message = data['message'] as String? ?? '';
+    final isRead = data['isRead'] as bool? ?? true;
+
+    return GestureDetector(
+      onTap: isRead ? null : () => _markAsRead(docId),
+      child: Container(
+        color: isRead ? Colors.white : const Color(0xFFFFF8F8),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 20, vertical: 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isRead
+                    ? const Color(0xFFF7F8FC)
+                    : _pink.withValues(alpha: 0.10),
+                border: Border.all(
+                  color: isRead
+                      ? const Color(0xFFEEEEEE)
+                      : _pink.withValues(alpha: 0.30),
+                ),
+              ),
+              child: Icon(
+                Icons.notifications_outlined,
+                size: 22,
+                color: isRead ? const Color(0xFF9B9B9B) : _pink,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (title.isNotEmpty)
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: isRead
+                            ? FontWeight.w500
+                            : FontWeight.w700,
+                        color: const Color(0xFF1A1A1A),
+                      ),
+                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: const TextStyle(
+                        fontSize: 13, color: Color(0xFF9B9B9B)),
+                  ),
+                  if (!isRead) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Tap to mark as read',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _pink,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (!isRead)
+              Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.only(top: 6, left: 8),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _pink,
+                ),
+              ),
           ],
         ),
       ),
