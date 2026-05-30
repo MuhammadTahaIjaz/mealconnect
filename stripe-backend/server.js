@@ -74,5 +74,16 @@ app.post('/create-payment-intent', async (req, res) => {
   }
 });
 
+// Delete a Stripe customer — call this before deleting a parent account
+app.post('/delete-customer', async (req, res) => {
+  try {
+    const { customerId } = req.body;
+    await stripe.customers.del(customerId);
+    res.json({ deleted: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`MealConnect Stripe backend running on port ${PORT}`));

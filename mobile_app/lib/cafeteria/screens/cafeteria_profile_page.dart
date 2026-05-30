@@ -25,6 +25,7 @@ class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
   bool _savingName = false;
   bool _savingPassword = false;
   bool _loading = true;
+  bool _deletingAccount = false;
 
   String _email = '';
   String _schoolDisplayName = '';
@@ -103,6 +104,72 @@ class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
     }
   }
 
+  void _confirmDeleteAccount() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Delete Account',
+          style: TextStyle(
+              fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
+        ),
+        content: const Text(
+          'This will permanently delete your cafeteria account and all associated data. This cannot be undone.',
+          style: TextStyle(fontSize: 13, color: Color(0xFF9B9B9B)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL',
+                style: TextStyle(color: Color(0xFF9B9B9B))),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteAccount();
+            },
+            child: const Text('DELETE',
+                style: TextStyle(
+                    color: Color(0xFFE53935),
+                    fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteAccount() async {
+    setState(() => _deletingAccount = true);
+    try {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final db = FirebaseFirestore.instance;
+
+      final batch = db.batch();
+      batch.delete(db.collection('cafeterias').doc(uid));
+      batch.delete(db.collection('users').doc(uid));
+      await batch.commit();
+
+      await FirebaseAuth.instance.currentUser!.delete();
+
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+            context, '/type-selection', (_) => false);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        _showSnack(e.code == 'requires-recent-login'
+            ? 'Please sign out and sign back in, then try again.'
+            : 'Failed to delete account. Try again.');
+      }
+    } catch (_) {
+      if (mounted) _showSnack('Failed to delete account. Try again.');
+    } finally {
+      if (mounted) setState(() => _deletingAccount = false);
+    }
+  }
+
   Future<void> _changePassword() async {
     if (!(_passwordFormKey.currentState?.validate() ?? false)) return;
     setState(() => _savingPassword = true);
@@ -172,6 +239,8 @@ class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
                         title: 'Change Password',
                         child: _buildPasswordSection(),
                       ),
+                      const SizedBox(height: 32),
+                      _buildDeleteSection(),
                     ],
                   ),
                 ),
@@ -442,6 +511,91 @@ class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
           borderRadius: BorderRadius.circular(12),
           borderSide:
               const BorderSide(color: Color(0xFFE53935), width: 1.5)),
+    );
+  }
+
+  Widget _buildDeleteSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'DANGER ZONE',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFFE53935),
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFFFCDD2)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Delete Account',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A1A),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Permanently removes your cafeteria account and all associated data.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton(
+                  onPressed:
+                      _deletingAccount ? null : _confirmDeleteAccount,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFE53935),
+                    side: const BorderSide(color: Color(0xFFE53935)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(27)),
+                  ),
+                  child: _deletingAccount
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                Color(0xFFE53935)),
+                          ),
+                        )
+                      : const Text(
+                          'DELETE ACCOUNT',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
