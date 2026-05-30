@@ -81,10 +81,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final db = FirebaseFirestore.instance;
       final batch = db.batch();
 
+      // One orderId groups all items from this checkout into a single order
+      final orderId = db.collection('mealSelections').doc().id;
+
       for (final item in _cart) {
         final ref = db.collection('mealSelections').doc();
         batch.set(ref, {
           'selectionId': ref.id,
+          'orderId': orderId,
           'childId': _childId,
           'childName': _childName,
           'mealId': item['mealId'],
