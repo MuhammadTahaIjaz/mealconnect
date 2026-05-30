@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -25,6 +27,9 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _savingName = false;
   bool _savingPassword = false;
   bool _loading = true;
+  bool _deletingAccount = false;
+
+  static const _backendUrl = 'http://72.61.254.215:3000';
 
   String _email = '';
   String _schoolDisplayName = '';
@@ -98,6 +103,95 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  void _confirmDeleteAccount() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Delete Account',
+          style: TextStyle(
+              fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
+        ),
+        content: const Text(
+          'This will permanently delete your account, all your children\'s records, and your saved payment method. This cannot be undone.',
+          style: TextStyle(fontSize: 13, color: Color(0xFF9B9B9B)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL',
+                style: TextStyle(color: Color(0xFF9B9B9B))),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteAccount();
+            },
+            child: const Text('DELETE',
+                style: TextStyle(
+                    color: Color(0xFFE53935),
+                    fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteAccount() async {
+    setState(() => _deletingAccount = true);
+    try {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final db = FirebaseFirestore.instance;
+
+      // 1. Delete Stripe Customer if one exists
+      final parentDoc = await db.collection('parents').doc(uid).get();
+      final stripeCustomerId =
+          parentDoc.data()?['stripeCustomerId'] as String?;
+      if (stripeCustomerId != null) {
+        await http.post(
+          Uri.parse('$_backendUrl/delete-customer'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'customerId': stripeCustomerId}),
+        );
+      }
+
+      // 2. Delete all children belonging to this parent
+      final childrenSnap = await db
+          .collection('children')
+          .where('parentId', isEqualTo: uid)
+          .get();
+      final batch = db.batch();
+      for (final doc in childrenSnap.docs) {
+        batch.delete(doc.reference);
+      }
+
+      // 3. Delete parent and user documents
+      batch.delete(db.collection('parents').doc(uid));
+      batch.delete(db.collection('users').doc(uid));
+      await batch.commit();
+
+      // 4. Delete Firebase Auth account
+      await FirebaseAuth.instance.currentUser!.delete();
+
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+            context, '/type-selection', (_) => false);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        _showSnack(e.code == 'requires-recent-login'
+            ? 'Please sign out and sign back in, then try again.'
+            : 'Failed to delete account. Try again.');
+      }
+    } catch (_) {
+      if (mounted) _showSnack('Failed to delete account. Try again.');
+    } finally {
+      if (mounted) setState(() => _deletingAccount = false);
+    }
+  }
+
   Future<void> _changePassword() async {
     if (!(_passwordFormKey.currentState?.validate() ?? false)) return;
     setState(() => _savingPassword = true);
@@ -167,6 +261,8 @@ class _ProfilePageState extends State<ProfilePage> {
                         title: 'Change Password',
                         child: _buildPasswordSection(),
                       ),
+                      const SizedBox(height: 32),
+                      _buildDeleteSection(),
                     ],
                   ),
                 ),
@@ -435,6 +531,91 @@ class _ProfilePageState extends State<ProfilePage> {
           borderRadius: BorderRadius.circular(12),
           borderSide:
               const BorderSide(color: Color(0xFFE53935), width: 1.5)),
+    );
+  }
+
+  Widget _buildDeleteSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'DANGER ZONE',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFFE53935),
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFFFCDD2)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Delete Account',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A1A),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Permanently removes your account, children\'s records, and saved payment method.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton(
+                  onPressed:
+                      _deletingAccount ? null : _confirmDeleteAccount,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFE53935),
+                    side: const BorderSide(color: Color(0xFFE53935)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(27)),
+                  ),
+                  child: _deletingAccount
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                Color(0xFFE53935)),
+                          ),
+                        )
+                      : const Text(
+                          'DELETE ACCOUNT',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
