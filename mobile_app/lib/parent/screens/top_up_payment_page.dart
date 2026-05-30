@@ -18,41 +18,134 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
   static const _orange = Color(0xFFFF8C00);
   static const _backendUrl = 'http://72.61.254.215:3000';
 
+  // Customer / saved card state
+  bool _loadingCustomer = true;
+  String? _stripeCustomerId;
+  Map<String, dynamic>? _savedCard; // {id, last4, brand}
+  bool _useSavedCard = true;
+
+  // Payment state
   bool _cardComplete = false;
   bool _isProcessing = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomerData();
+  }
+
+  Future<void> _loadCustomerData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser!;
+      final uid = user.uid;
+
+      final parentDoc = await FirebaseFirestore.instance
+          .collection('parents')
+          .doc(uid)
+          .get();
+
+      String? customerId =
+          parentDoc.data()?['stripeCustomerId'] as String?;
+
+      // Create a Stripe customer if this is the first time
+      if (customerId == null) {
+        final response = await http.post(
+          Uri.parse('$_backendUrl/create-customer'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'email': user.email, 'uid': uid}),
+        );
+        if (response.statusCode == 200) {
+          customerId =
+              jsonDecode(response.body)['customerId'] as String;
+          await FirebaseFirestore.instance
+              .collection('parents')
+              .doc(uid)
+              .update({'stripeCustomerId': customerId});
+        }
+      }
+
+      _stripeCustomerId = customerId;
+
+      // Fetch saved payment methods
+      if (customerId != null) {
+        final pmResponse = await http.post(
+          Uri.parse('$_backendUrl/list-payment-methods'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'customerId': customerId}),
+        );
+        if (pmResponse.statusCode == 200) {
+          final methods =
+              jsonDecode(pmResponse.body)['paymentMethods'] as List;
+          if (methods.isNotEmpty) {
+            final card = methods.first;
+            _savedCard = {
+              'id': card['id'] as String,
+              'last4': card['card']['last4'] as String,
+              'brand': card['card']['brand'] as String,
+            };
+          }
+        }
+      }
+    } catch (_) {
+      // Falls through — user will see CardFormField
+    } finally {
+      if (mounted) setState(() => _loadingCustomer = false);
+    }
+  }
+
+  bool get _canPay =>
+      _useSavedCard ? _savedCard != null : _cardComplete;
+
   Future<void> _pay() async {
-    if (!_cardComplete || _isProcessing) return;
+    if (!_canPay || _isProcessing) return;
     setState(() => _isProcessing = true);
 
     try {
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final amountCents = (widget.amount * 100).toInt();
 
+      final body = <String, dynamic>{'amountCents': amountCents};
+      if (_stripeCustomerId != null) {
+        body['customerId'] = _stripeCustomerId;
+      }
+      if (_useSavedCard && _savedCard != null) {
+        body['paymentMethodId'] = _savedCard!['id'];
+      }
+
       final response = await http.post(
         Uri.parse('$_backendUrl/create-payment-intent'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'amountCents': amountCents}),
+        body: jsonEncode(body),
       );
 
       if (response.statusCode != 200) {
-        throw jsonDecode(response.body)['error'] as String? ?? 'Server error';
+        throw jsonDecode(response.body)['error'] as String? ??
+            'Server error';
       }
 
       final clientSecret =
           jsonDecode(response.body)['clientSecret'] as String;
 
-      await Stripe.instance.confirmPayment(
-        paymentIntentClientSecret: clientSecret,
-        data: const PaymentMethodParams.card(
-          paymentMethodData: PaymentMethodData(),
-        ),
-      );
+      if (_useSavedCard && _savedCard != null) {
+        // PaymentIntent already has the payment_method set server-side
+        await Stripe.instance.confirmPayment(
+          paymentIntentClientSecret: clientSecret,
+        );
+      } else {
+        // New card entered via CardFormField
+        await Stripe.instance.confirmPayment(
+          paymentIntentClientSecret: clientSecret,
+          data: const PaymentMethodParams.card(
+            paymentMethodData: PaymentMethodData(),
+          ),
+        );
+      }
 
       await FirebaseFirestore.instance
           .collection('parents')
           .doc(uid)
-          .update({'walletBalance': FieldValue.increment(widget.amount)});
+          .update(
+              {'walletBalance': FieldValue.increment(widget.amount)});
 
       if (mounted) Navigator.pop(context, true);
     } on StripeException catch (e) {
@@ -72,7 +165,8 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
         content: Text(msg),
         backgroundColor: const Color(0xFFE53935),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -101,67 +195,40 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildAmountCard(),
-              const SizedBox(height: 28),
-              const Text(
-                'Card Details',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A),
+        child: _loadingCustomer
+            ? const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(_pink),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.07),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4),
+              )
+            : SingleChildScrollView(
+                padding:
+                    const EdgeInsets.fromLTRB(20, 24, 20, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildAmountCard(),
+                    const SizedBox(height: 28),
+                    _buildPaymentSection(),
+                    const SizedBox(height: 28),
+                    _buildPayButton(),
+                    const SizedBox(height: 16),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.lock_outline,
+                            size: 13, color: Color(0xFF9B9B9B)),
+                        SizedBox(width: 5),
+                        Text(
+                          'Payments secured by Stripe',
+                          style: TextStyle(
+                              fontSize: 12, color: Color(0xFF9B9B9B)),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                child: CardFormField(
-                  style: CardFormStyle(
-                    backgroundColor: Colors.white,
-                    textColor: const Color(0xFF1A1A1A),
-                    placeholderColor: const Color(0xFF9B9B9B),
-                    fontSize: 15,
-                    cursorColor: _pink,
-                  ),
-                  onCardChanged: (details) {
-                    setState(
-                        () => _cardComplete = details?.complete ?? false);
-                  },
-                ),
               ),
-              const SizedBox(height: 28),
-              _buildPayButton(),
-              const SizedBox(height: 16),
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.lock_outline,
-                      size: 13, color: Color(0xFF9B9B9B)),
-                  SizedBox(width: 5),
-                  Text(
-                    'Payments secured by Stripe',
-                    style:
-                        TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -205,6 +272,157 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
     );
   }
 
+  Widget _buildPaymentSection() {
+    // Show saved card if available and user hasn't chosen to use a new one
+    if (_savedCard != null && _useSavedCard) {
+      return _buildSavedCardSection();
+    }
+    return _buildNewCardSection();
+  }
+
+  Widget _buildSavedCardSection() {
+    final brand = (_savedCard!['brand'] as String).toUpperCase();
+    final last4 = _savedCard!['last4'] as String;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Payment Method',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1A1A1A),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.07),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F8FC),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.credit_card,
+                    color: Color(0xFF1A1A1A), size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$brand  ****  $last4',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1A1A1A),
+                      ),
+                    ),
+                    const Text(
+                      'Saved card',
+                      style: TextStyle(
+                          fontSize: 12, color: Color(0xFF9B9B9B)),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.check_circle,
+                  color: Color(0xFF43A047), size: 22),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: () => setState(() => _useSavedCard = false),
+          child: const Text(
+            'Use a different card',
+            style: TextStyle(
+              fontSize: 13,
+              color: _pink,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNewCardSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Card Details',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1A1A1A),
+              ),
+            ),
+            if (_savedCard != null)
+              GestureDetector(
+                onTap: () => setState(() => _useSavedCard = true),
+                child: const Text(
+                  'Use saved card',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _pink,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.07),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: CardFormField(
+            style: CardFormStyle(
+              backgroundColor: Colors.white,
+              textColor: const Color(0xFF1A1A1A),
+              placeholderColor: const Color(0xFF9B9B9B),
+              fontSize: 15,
+              cursorColor: _pink,
+            ),
+            onCardChanged: (details) {
+              setState(
+                  () => _cardComplete = details?.complete ?? false);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildPayButton() {
     return SizedBox(
       width: double.infinity,
@@ -218,14 +436,14 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
           : DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: _cardComplete
+                  colors: _canPay
                       ? const [_pink, _orange]
                       : const [Color(0xFFCCCCCC), Color(0xFFCCCCCC)],
                 ),
                 borderRadius: BorderRadius.circular(27),
               ),
               child: ElevatedButton(
-                onPressed: _cardComplete ? _pay : null,
+                onPressed: _canPay ? _pay : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,

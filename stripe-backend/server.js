@@ -11,17 +11,63 @@ app.use(express.json());
 
 app.get('/', (_, res) => res.send('MealConnect Stripe backend OK'));
 
+// Create a Stripe customer for a parent (call once, store customerId in Firestore)
+app.post('/create-customer', async (req, res) => {
+  try {
+    const { email, uid } = req.body;
+    const customer = await stripe.customers.create({
+      email,
+      metadata: { uid },
+    });
+    res.json({ customerId: customer.id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// List saved cards for a customer
+app.post('/list-payment-methods', async (req, res) => {
+  try {
+    const { customerId } = req.body;
+    const methods = await stripe.paymentMethods.list({
+      customer: customerId,
+      type: 'card',
+    });
+    res.json({ paymentMethods: methods.data });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Create a PaymentIntent
+// - Pass customerId to link to a Stripe customer (card will be saved after payment)
+// - Pass paymentMethodId to charge a previously saved card
 app.post('/create-payment-intent', async (req, res) => {
   try {
-    const { amountCents } = req.body;
+    const { amountCents, customerId, paymentMethodId } = req.body;
     if (!Number.isInteger(amountCents) || amountCents < 50) {
       return res.status(400).json({ error: 'Minimum amount is $0.50' });
     }
-    const intent = await stripe.paymentIntents.create({
+
+    const params = {
       amount: amountCents,
       currency: 'usd',
-      automatic_payment_methods: { enabled: true },
-    });
+    };
+
+    if (customerId) {
+      params.customer = customerId;
+      // Saves the card to the customer after successful payment
+      params.setup_future_usage = 'off_session';
+      params.payment_method_types = ['card'];
+    } else {
+      params.automatic_payment_methods = { enabled: true };
+    }
+
+    if (paymentMethodId) {
+      params.payment_method = paymentMethodId;
+    }
+
+    const intent = await stripe.paymentIntents.create(params);
     res.json({ clientSecret: intent.client_secret });
   } catch (e) {
     res.status(500).json({ error: e.message });
