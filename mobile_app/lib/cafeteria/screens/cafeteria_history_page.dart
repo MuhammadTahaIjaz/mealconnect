@@ -15,6 +15,20 @@ class _CafeteriaHistoryPageState
   static const _pink = Color(0xFFFF3366);
   static const _orange = Color(0xFFFF8C00);
 
+  Map<String, List<QueryDocumentSnapshot>> _groupByOrderId(
+      List<QueryDocumentSnapshot> docs) {
+    final grouped = <String, List<QueryDocumentSnapshot>>{};
+    for (final doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final key =
+          (data['orderId'] as String?)?.isNotEmpty == true
+              ? data['orderId'] as String
+              : doc.id;
+      grouped.putIfAbsent(key, () => []).add(doc);
+    }
+    return grouped;
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser!.uid;
@@ -40,17 +54,15 @@ class _CafeteriaHistoryPageState
                     return const Center(
                       child: CircularProgressIndicator(
                         valueColor:
-                            AlwaysStoppedAnimation<Color>(
-                                _pink),
+                            AlwaysStoppedAnimation<Color>(_pink),
                       ),
                     );
                   }
 
-                  // Filter: last 30 days + delivered only, newest first
                   final docs =
                       (snapshot.data?.docs ?? []).where((doc) {
-                    final d = doc.data()
-                        as Map<String, dynamic>;
+                    final d =
+                        doc.data() as Map<String, dynamic>;
                     final ts =
                         d['selectionDate'] as Timestamp?;
                     return d['isDelivered'] == true &&
@@ -69,10 +81,7 @@ class _CafeteriaHistoryPageState
                           return bMs.compareTo(aMs);
                         });
 
-                  if (docs.isEmpty) {
-                    return _buildEmpty();
-                  }
-
+                  if (docs.isEmpty) return _buildEmpty();
                   return _buildContent(docs);
                 },
               ),
@@ -100,8 +109,8 @@ class _CafeteriaHistoryPageState
           SizedBox(height: 4),
           Text(
             'Last 30 days  •  Delivered orders',
-            style: TextStyle(
-                fontSize: 12, color: Color(0xFF9B9B9B)),
+            style:
+                TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
           ),
         ],
       ),
@@ -127,57 +136,59 @@ class _CafeteriaHistoryPageState
   }
 
   Widget _buildContent(List<QueryDocumentSnapshot> docs) {
-    // Compute totals for summary card
+    // Total earned = sum of all individual items
     double totalEarned = 0;
     for (final doc in docs) {
       final d = doc.data() as Map<String, dynamic>;
-      final price = (d['price'] as num?)?.toDouble() ?? 0.0;
-      final qty = (d['quantity'] as int?) ?? 1;
-      totalEarned += price * qty;
+      totalEarned += (d['price'] as num).toDouble() *
+          (d['quantity'] as num).toInt();
     }
 
-    // Group by date label
-    final grouped =
+    // Level 1: group by date
+    final byDate =
         <String, List<QueryDocumentSnapshot>>{};
     for (final doc in docs) {
       final ts = ((doc.data() as Map<String, dynamic>)[
               'selectionDate'] as Timestamp)
           .toDate();
-      grouped
+      byDate
           .putIfAbsent(_dateLabel(ts), () => [])
           .add(doc);
     }
 
+    // Count distinct orders across all dates
+    final totalOrders = _groupByOrderId(docs).length;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       children: [
-        // ── Earnings summary card ──────────────────────
-        _buildSummaryCard(totalEarned, docs.length),
+        _buildSummaryCard(totalEarned, totalOrders),
         const SizedBox(height: 8),
-
-        // ── Grouped order list ─────────────────────────
-        ...grouped.entries.expand((entry) => [
-              Padding(
-                padding: const EdgeInsets.only(
-                    top: 16, bottom: 8),
-                child: Text(
-                  entry.key,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF9B9B9B),
-                    letterSpacing: 0.5,
-                  ),
+        ...byDate.entries.expand((dateEntry) {
+          final byOrder = _groupByOrderId(dateEntry.value);
+          return [
+            Padding(
+              padding:
+                  const EdgeInsets.only(top: 16, bottom: 8),
+              child: Text(
+                dateEntry.key,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF9B9B9B),
+                  letterSpacing: 0.5,
                 ),
               ),
-              ...entry.value.map((doc) => _buildCard(
-                  doc.data() as Map<String, dynamic>)),
-            ]),
+            ),
+            ...byOrder.entries
+                .map((e) => _buildOrderCard(e.value)),
+          ];
+        }),
       ],
     );
   }
 
-  Widget _buildSummaryCard(double total, int count) {
+  Widget _buildSummaryCard(double total, int orderCount) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -204,8 +215,7 @@ class _CafeteriaHistoryPageState
                 const Text(
                   'Total Earned',
                   style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white70),
+                      fontSize: 12, color: Colors.white70),
                 ),
                 Text(
                   '\$${total.toStringAsFixed(2)}',
@@ -222,7 +232,7 @@ class _CafeteriaHistoryPageState
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '$count',
+                '$orderCount',
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w700,
@@ -241,15 +251,19 @@ class _CafeteriaHistoryPageState
     );
   }
 
-  Widget _buildCard(Map<String, dynamic> d) {
-    final mealName = (d['mealName'] as String?) ?? 'Meal';
-    final price = (d['price'] as num?)?.toDouble() ?? 0.0;
-    final qty = (d['quantity'] as int?) ?? 1;
-    final childName = (d['childName'] as String?) ?? '';
-    final childId = (d['childId'] as String?) ?? '';
-    final ts = d['selectionDate'] as Timestamp?;
+  Widget _buildOrderCard(List<QueryDocumentSnapshot> items) {
+    final first = items.first.data() as Map<String, dynamic>;
+    final childName = first['childName'] as String? ?? '';
+    final ts = first['selectionDate'] as Timestamp?;
     final timeStr =
         ts != null ? _timeStr(ts.toDate()) : '';
+
+    double total = 0;
+    for (final doc in items) {
+      final d = doc.data() as Map<String, dynamic>;
+      total += (d['price'] as num).toDouble() *
+          (d['quantity'] as num).toInt();
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -265,65 +279,100 @@ class _CafeteriaHistoryPageState
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF7F8FC),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.fastfood_outlined,
-                size: 20, color: Color(0xFFCCCCCC)),
-          ),
-          const SizedBox(width: 12),
-          // Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  mealName,
+          // Header: child + time
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F8FC),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.person_outline,
+                    size: 20, color: Color(0xFFCCCCCC)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  childName.isNotEmpty
+                      ? childName
+                      : 'Student',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF1A1A1A),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  childName.isNotEmpty
-                      ? childName
-                      : 'ID: $childId',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF9B9B9B)),
-                ),
-                Text(
-                  '× $qty  •  $timeStr',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF9B9B9B)),
-                ),
-              ],
-            ),
+              ),
+              Text(
+                timeStr,
+                style: const TextStyle(
+                    fontSize: 12, color: Color(0xFF9B9B9B)),
+              ),
+            ],
           ),
-          // Earned amount
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: Color(0xFFF0F0F0)),
+          const SizedBox(height: 8),
+          // Meal items
+          ...items.map((doc) {
+            final d = doc.data() as Map<String, dynamic>;
+            final mealName =
+                d['mealName'] as String? ?? 'Meal';
+            final qty = (d['quantity'] as num).toInt();
+            final price = (d['price'] as num).toDouble();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.restaurant,
+                      size: 14, color: Color(0xFF9B9B9B)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      mealName,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF1A1A1A)),
+                    ),
+                  ),
+                  Text(
+                    '× $qty',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF9B9B9B)),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '\$${(price * qty).toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const Divider(height: 12, color: Color(0xFFF0F0F0)),
+          // Total + delivered badge
+          Row(
+            mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '\$${(price * qty).toStringAsFixed(2)}',
+                'Total  \$${total.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFF43A047),
                 ),
               ),
-              const SizedBox(height: 5),
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 3),
@@ -335,8 +384,7 @@ class _CafeteriaHistoryPageState
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.check_circle,
-                        size: 10,
-                        color: Color(0xFF43A047)),
+                        size: 10, color: Color(0xFF43A047)),
                     SizedBox(width: 3),
                     Text(
                       'Delivered',
@@ -356,12 +404,9 @@ class _CafeteriaHistoryPageState
     );
   }
 
-  // ── Helpers ──────────────────────────────────────────────
-
   String _dateLabel(DateTime dt) {
     final now = DateTime.now();
-    final today =
-        DateTime(now.year, now.month, now.day);
+    final today = DateTime(now.year, now.month, now.day);
     final d = DateTime(dt.year, dt.month, dt.day);
     if (d == today) return 'Today';
     if (d == today.subtract(const Duration(days: 1))) {

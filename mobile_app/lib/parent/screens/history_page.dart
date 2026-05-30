@@ -18,7 +18,6 @@ class _HistoryPageState extends State<HistoryPage> {
     _cleanupOldOrders();
   }
 
-  // Deletes mealSelections older than 30 days for this parent.
   Future<void> _cleanupOldOrders() async {
     try {
       final uid = FirebaseAuth.instance.currentUser!.uid;
@@ -30,8 +29,7 @@ class _HistoryPageState extends State<HistoryPage> {
           .where('parentId', isEqualTo: uid)
           .get();
       final old = snap.docs.where((doc) {
-        final ts =
-            (doc.data()['selectionDate'] as Timestamp?);
+        final ts = doc.data()['selectionDate'] as Timestamp?;
         return ts != null && ts.compareTo(cutoff) < 0;
       }).toList();
       if (old.isEmpty) return;
@@ -41,6 +39,21 @@ class _HistoryPageState extends State<HistoryPage> {
       }
       await batch.commit();
     } catch (_) {}
+  }
+
+  // Group a flat list by orderId, falling back to doc.id for old records
+  Map<String, List<QueryDocumentSnapshot>> _groupByOrderId(
+      List<QueryDocumentSnapshot> docs) {
+    final grouped = <String, List<QueryDocumentSnapshot>>{};
+    for (final doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final key =
+          (data['orderId'] as String?)?.isNotEmpty == true
+              ? data['orderId'] as String
+              : doc.id;
+      grouped.putIfAbsent(key, () => []).add(doc);
+    }
+    return grouped;
   }
 
   @override
@@ -67,13 +80,12 @@ class _HistoryPageState extends State<HistoryPage> {
                       ConnectionState.waiting) {
                     return const Center(
                       child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                            _pink),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(_pink),
                       ),
                     );
                   }
 
-                  // Filter to last 30 days and sort newest-first
                   final docs =
                       (snapshot.data?.docs ?? []).where((doc) {
                     final ts = (doc.data()
@@ -83,21 +95,18 @@ class _HistoryPageState extends State<HistoryPage> {
                         ts.toDate().isAfter(cutoff);
                   }).toList()
                         ..sort((a, b) {
-                          final aMs = ((a.data()
-                                  as Map)['selectionDate']
-                              as Timestamp)
-                              .millisecondsSinceEpoch;
-                          final bMs = ((b.data()
-                                  as Map)['selectionDate']
-                              as Timestamp)
-                              .millisecondsSinceEpoch;
+                          final aMs =
+                              ((a.data() as Map)['selectionDate']
+                                      as Timestamp)
+                                  .millisecondsSinceEpoch;
+                          final bMs =
+                              ((b.data() as Map)['selectionDate']
+                                      as Timestamp)
+                                  .millisecondsSinceEpoch;
                           return bMs.compareTo(aMs);
                         });
 
-                  if (docs.isEmpty) {
-                    return _buildEmpty();
-                  }
-
+                  if (docs.isEmpty) return _buildEmpty();
                   return _buildList(docs);
                 },
               ),
@@ -125,8 +134,8 @@ class _HistoryPageState extends State<HistoryPage> {
           SizedBox(height: 4),
           Text(
             'Last 30 days',
-            style: TextStyle(
-                fontSize: 12, color: Color(0xFF9B9B9B)),
+            style:
+                TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
           ),
         ],
       ),
@@ -143,8 +152,8 @@ class _HistoryPageState extends State<HistoryPage> {
           const SizedBox(height: 16),
           const Text(
             'No orders in the last 30 days.',
-            style:
-                TextStyle(fontSize: 14, color: Color(0xFF9B9B9B)),
+            style: TextStyle(
+                fontSize: 14, color: Color(0xFF9B9B9B)),
           ),
         ],
       ),
@@ -152,26 +161,26 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Widget _buildList(List<QueryDocumentSnapshot> docs) {
-    // Group by date label
-    final grouped =
+    // Level 1: group by date
+    final byDate =
         <String, List<QueryDocumentSnapshot>>{};
     for (final doc in docs) {
       final ts = ((doc.data() as Map<String, dynamic>)[
               'selectionDate'] as Timestamp)
           .toDate();
-      final key = _dateLabel(ts);
-      grouped.putIfAbsent(key, () => []).add(doc);
+      byDate.putIfAbsent(_dateLabel(ts), () => []).add(doc);
     }
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-      children: grouped.entries.expand((entry) {
+      children: byDate.entries.expand((dateEntry) {
+        // Level 2: group by orderId within each date
+        final byOrder = _groupByOrderId(dateEntry.value);
         return [
           Padding(
-            padding:
-                const EdgeInsets.only(top: 16, bottom: 8),
+            padding: const EdgeInsets.only(top: 16, bottom: 8),
             child: Text(
-              entry.key,
+              dateEntry.key,
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -180,21 +189,27 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
             ),
           ),
-          ...entry.value.map((doc) => _buildCard(
-              doc.data() as Map<String, dynamic>)),
+          ...byOrder.entries.map(
+              (e) => _buildOrderCard(e.value)),
         ];
       }).toList(),
     );
   }
 
-  Widget _buildCard(Map<String, dynamic> d) {
-    final mealName = (d['mealName'] as String?) ?? 'Meal';
-    final price = (d['price'] as num?)?.toDouble() ?? 0.0;
-    final qty = (d['quantity'] as int?) ?? 1;
-    final childName = (d['childName'] as String?) ?? '';
-    final isDelivered = d['isDelivered'] == true;
-    final ts = d['selectionDate'] as Timestamp?;
-    final timeStr = ts != null ? _timeStr(ts.toDate()) : '';
+  Widget _buildOrderCard(List<QueryDocumentSnapshot> items) {
+    final first = items.first.data() as Map<String, dynamic>;
+    final childName = first['childName'] as String? ?? '';
+    final ts = first['selectionDate'] as Timestamp?;
+    final timeStr =
+        ts != null ? _timeStr(ts.toDate()) : '';
+    final isDelivered = first['isDelivered'] == true;
+
+    double total = 0;
+    for (final doc in items) {
+      final d = doc.data() as Map<String, dynamic>;
+      total += (d['price'] as num).toDouble() *
+          (d['quantity'] as num).toInt();
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -210,64 +225,97 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF7F8FC),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.fastfood_outlined,
-                size: 20, color: Color(0xFFCCCCCC)),
-          ),
-          const SizedBox(width: 12),
-          // Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  mealName,
+          // Header row: child + time
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F8FC),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.person_outline,
+                    size: 20, color: Color(0xFFCCCCCC)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  childName.isNotEmpty ? childName : 'Student',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF1A1A1A),
                   ),
                 ),
-                const SizedBox(height: 2),
-                if (childName.isNotEmpty)
+              ),
+              Text(
+                timeStr,
+                style: const TextStyle(
+                    fontSize: 12, color: Color(0xFF9B9B9B)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: Color(0xFFF0F0F0)),
+          const SizedBox(height: 8),
+          // Meal items
+          ...items.map((doc) {
+            final d = doc.data() as Map<String, dynamic>;
+            final mealName =
+                d['mealName'] as String? ?? 'Meal';
+            final qty = (d['quantity'] as num).toInt();
+            final price = (d['price'] as num).toDouble();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.restaurant,
+                      size: 14, color: Color(0xFF9B9B9B)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      mealName,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF1A1A1A)),
+                    ),
+                  ),
                   Text(
-                    childName,
+                    '× $qty',
                     style: const TextStyle(
                         fontSize: 12,
                         color: Color(0xFF9B9B9B)),
                   ),
-                Text(
-                  '× $qty  •  $timeStr',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF9B9B9B)),
-                ),
-              ],
-            ),
-          ),
-          // Amount + status
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+                  const SizedBox(width: 12),
+                  Text(
+                    '\$${(price * qty).toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const Divider(height: 12, color: Color(0xFFF0F0F0)),
+          // Total + status
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '\$${(price * qty).toStringAsFixed(2)}',
+                'Total  \$${total.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFF1A1A1A),
                 ),
               ),
-              const SizedBox(height: 5),
               _statusBadge(isDelivered),
             ],
           ),
@@ -314,16 +362,12 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  // ── Helpers ──────────────────────────────────────────────
-
   String _dateLabel(DateTime dt) {
     final now = DateTime.now();
-    final today =
-        DateTime(now.year, now.month, now.day);
+    final today = DateTime(now.year, now.month, now.day);
     final d = DateTime(dt.year, dt.month, dt.day);
     if (d == today) return 'Today';
-    if (d ==
-        today.subtract(const Duration(days: 1))) {
+    if (d == today.subtract(const Duration(days: 1))) {
       return 'Yesterday';
     }
     const mo = [
