@@ -85,6 +85,20 @@ app.post('/delete-customer', async (req, res) => {
   }
 });
 
+// Check if a cafeteria's Stripe account has completed onboarding
+app.post('/account-status', async (req, res) => {
+  try {
+    const { accountId } = req.body;
+    const account = await stripe.accounts.retrieve(accountId);
+    res.json({
+      detailsSubmitted: account.details_submitted,
+      payoutsEnabled: account.payouts_enabled,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Create a Stripe Express connected account + onboarding link for a cafeteria
 // Pass accountId if the cafeteria already has one (regenerates the link)
 app.post('/create-account-link', async (req, res) => {

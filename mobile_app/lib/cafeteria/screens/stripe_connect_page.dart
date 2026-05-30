@@ -12,7 +12,8 @@ class StripeConnectPage extends StatefulWidget {
   State<StripeConnectPage> createState() => _StripeConnectPageState();
 }
 
-class _StripeConnectPageState extends State<StripeConnectPage> {
+class _StripeConnectPageState extends State<StripeConnectPage>
+    with WidgetsBindingObserver {
   static const _pink = Color(0xFFFF3366);
   static const _orange = Color(0xFFFF8C00);
   static const _backendUrl = 'http://72.61.254.215:3000';
@@ -20,11 +21,27 @@ class _StripeConnectPageState extends State<StripeConnectPage> {
   bool _loading = true;
   bool _connecting = false;
   String? _stripeAccountId;
+  bool _detailsSubmitted = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadAccountStatus();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Auto-refresh when user returns to the app from the Stripe browser
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadAccountStatus();
+    }
   }
 
   Future<void> _loadAccountStatus() async {
@@ -34,10 +51,33 @@ class _StripeConnectPageState extends State<StripeConnectPage> {
           .collection('cafeterias')
           .doc(uid)
           .get();
-      _stripeAccountId =
+
+      final accountId =
           doc.data()?['stripeAccountId'] as String?;
+
+      bool submitted = false;
+      if (accountId != null) {
+        // Check actual Stripe account status
+        final response = await http.post(
+          Uri.parse('$_backendUrl/account-status'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'accountId': accountId}),
+        );
+        if (response.statusCode == 200) {
+          submitted =
+              jsonDecode(response.body)['detailsSubmitted'] as bool? ??
+                  false;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _stripeAccountId = accountId;
+          _detailsSubmitted = submitted;
+          _loading = false;
+        });
+      }
     } catch (_) {
-    } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -66,24 +106,24 @@ class _StripeConnectPageState extends State<StripeConnectPage> {
       final accountId = data['accountId'] as String;
       final url = data['url'] as String;
 
-      // Save accountId to Firestore before opening the URL
+      // Save accountId so we can regenerate the link if needed
       await FirebaseFirestore.instance
           .collection('cafeterias')
           .doc(uid)
           .update({'stripeAccountId': accountId});
 
-      setState(() => _stripeAccountId = accountId);
+      if (mounted) setState(() => _stripeAccountId = accountId);
 
-      // Open Stripe onboarding in browser
-      await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
-      );
+      final uri = Uri.parse(url);
+      if (!await canLaunchUrl(uri)) {
+        throw 'Could not open browser. Please try again.';
+      }
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text('$e'),
             backgroundColor: const Color(0xFFE53935),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -123,8 +163,7 @@ class _StripeConnectPageState extends State<StripeConnectPage> {
         child: _loading
             ? const Center(
                 child: CircularProgressIndicator(
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(_pink),
+                  valueColor: AlwaysStoppedAnimation<Color>(_pink),
                 ),
               )
             : Padding(
@@ -138,23 +177,18 @@ class _StripeConnectPageState extends State<StripeConnectPage> {
                     const Spacer(),
                     _buildConnectButton(),
                     const SizedBox(height: 12),
-                    const Center(
-                      child: Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.lock_outline,
-                              size: 13,
-                              color: Color(0xFF9B9B9B)),
-                          SizedBox(width: 5),
-                          Text(
-                            'Secured by Stripe',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF9B9B9B)),
-                          ),
-                        ],
-                      ),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.lock_outline,
+                            size: 13, color: Color(0xFF9B9B9B)),
+                        SizedBox(width: 5),
+                        Text(
+                          'Secured by Stripe',
+                          style: TextStyle(
+                              fontSize: 12, color: Color(0xFF9B9B9B)),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -164,23 +198,46 @@ class _StripeConnectPageState extends State<StripeConnectPage> {
   }
 
   Widget _buildStatusCard() {
-    final connected = _stripeAccountId != null;
+    // Three states: not connected / incomplete / connected
+    final Color gradientStart;
+    final Color gradientEnd;
+    final IconData icon;
+    final String title;
+    final String subtitle;
+
+    if (_stripeAccountId == null) {
+      gradientStart = _pink;
+      gradientEnd = _orange;
+      icon = Icons.account_balance_outlined;
+      title = 'No Bank Account';
+      subtitle =
+          'Connect your bank account to receive payments when meals are delivered.';
+    } else if (!_detailsSubmitted) {
+      gradientStart = const Color(0xFFF5A623);
+      gradientEnd = const Color(0xFFFF8C00);
+      icon = Icons.warning_amber_outlined;
+      title = 'Setup Incomplete';
+      subtitle =
+          'You started setup but did not finish. Tap below to complete your bank account details.';
+    } else {
+      gradientStart = const Color(0xFF43A047);
+      gradientEnd = const Color(0xFF66BB6A);
+      icon = Icons.check_circle_outline;
+      title = 'Bank Account Connected';
+      subtitle =
+          'You will receive payments automatically when meals are delivered.';
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: connected
-              ? [const Color(0xFF43A047), const Color(0xFF66BB6A)]
-              : [_pink, _orange],
-        ),
+        gradient:
+            LinearGradient(colors: [gradientStart, gradientEnd]),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: (connected
-                    ? const Color(0xFF43A047)
-                    : _pink)
-                .withValues(alpha: 0.30),
+            color: gradientStart.withValues(alpha: 0.30),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -188,22 +245,14 @@ class _StripeConnectPageState extends State<StripeConnectPage> {
       ),
       child: Row(
         children: [
-          Icon(
-            connected
-                ? Icons.check_circle_outline
-                : Icons.account_balance_outlined,
-            color: Colors.white,
-            size: 36,
-          ),
+          Icon(icon, color: Colors.white, size: 36),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  connected
-                      ? 'Bank Account Connected'
-                      : 'No Bank Account',
+                  title,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -212,9 +261,7 @@ class _StripeConnectPageState extends State<StripeConnectPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  connected
-                      ? 'You will receive payments automatically when meals are delivered.'
-                      : 'Connect your bank account to receive payments when meals are delivered.',
+                  subtitle,
                   style: const TextStyle(
                       fontSize: 12, color: Colors.white70),
                 ),
@@ -262,26 +309,31 @@ class _StripeConnectPageState extends State<StripeConnectPage> {
         Icon(icon, size: 20, color: const Color(0xFF9B9B9B)),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-                fontSize: 13, color: Color(0xFF9B9B9B)),
-          ),
+          child: Text(text,
+              style: const TextStyle(
+                  fontSize: 13, color: Color(0xFF9B9B9B))),
         ),
       ],
     );
   }
 
   Widget _buildConnectButton() {
-    final connected = _stripeAccountId != null;
+    String label;
+    if (_stripeAccountId == null) {
+      label = 'CONNECT BANK ACCOUNT';
+    } else if (!_detailsSubmitted) {
+      label = 'COMPLETE SETUP';
+    } else {
+      label = 'UPDATE BANK ACCOUNT';
+    }
+
     return SizedBox(
       width: double.infinity,
       height: 54,
       child: _connecting
           ? const Center(
               child: CircularProgressIndicator(
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(_pink),
+                valueColor: AlwaysStoppedAnimation<Color>(_pink),
               ),
             )
           : DecoratedBox(
@@ -299,9 +351,7 @@ class _StripeConnectPageState extends State<StripeConnectPage> {
                       borderRadius: BorderRadius.circular(27)),
                 ),
                 child: Text(
-                  connected
-                      ? 'UPDATE BANK ACCOUNT'
-                      : 'CONNECT BANK ACCOUNT',
+                  label,
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
