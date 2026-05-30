@@ -39,11 +39,25 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
     }
   }
 
-  Future<void> _markDelivered(DocumentSnapshot doc) async {
-    final data = doc.data() as Map<String, dynamic>;
-    final selectionId = doc.id;
+  // Groups a flat list of docs by orderId (falls back to doc.id for
+  // old orders created before orderId was introduced)
+  Map<String, List<DocumentSnapshot>> _groupByOrder(
+      List<DocumentSnapshot> docs) {
+    final grouped = <String, List<DocumentSnapshot>>{};
+    for (final doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final key =
+          (data['orderId'] as String?)?.isNotEmpty == true
+              ? data['orderId'] as String
+              : doc.id;
+      grouped.putIfAbsent(key, () => []).add(doc);
+    }
+    return grouped;
+  }
 
-    if (_delivering.contains(selectionId)) return;
+  Future<void> _markDelivered(
+      String orderId, List<DocumentSnapshot> items) async {
+    if (_delivering.contains(orderId)) return;
 
     if (_stripeAccountId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -54,31 +68,32 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10)),
-          action: SnackBarAction(
-            label: 'OK',
-            textColor: Colors.white,
-            onPressed: () {},
-          ),
         ),
       );
       return;
     }
 
-    setState(() => _delivering.add(selectionId));
+    setState(() => _delivering.add(orderId));
 
     try {
-      final price = (data['price'] as num).toDouble();
-      final qty = (data['quantity'] as num).toInt();
-      final amountCents = (price * qty * 100).toInt();
+      // Total = sum of price × qty for all items in this order
+      double total = 0;
+      for (final doc in items) {
+        final data = doc.data() as Map<String, dynamic>;
+        final price = (data['price'] as num).toDouble();
+        final qty = (data['quantity'] as num).toInt();
+        total += price * qty;
+      }
+      final amountCents = (total * 100).toInt();
 
-      // Transfer payment to cafeteria
+      // Single transfer for the whole order
       final response = await http.post(
         Uri.parse('$_backendUrl/transfer-to-cafeteria'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'amountCents': amountCents,
           'cafeteriaAccountId': _stripeAccountId,
-          'selectionId': selectionId,
+          'selectionId': orderId,
         }),
       );
 
@@ -86,21 +101,23 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
         throw jsonDecode(response.body)['error'] ?? 'Transfer failed';
       }
 
-      // Mark as delivered in Firestore
-      await FirebaseFirestore.instance
-          .collection('mealSelections')
-          .doc(selectionId)
-          .update({
-        'status': 'delivered',
-        'isDelivered': true,
-        'deliveryDate': FieldValue.serverTimestamp(),
-      });
+      // Mark all items in the order as delivered
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
+      for (final doc in items) {
+        batch.update(doc.reference, {
+          'status': 'delivered',
+          'isDelivered': true,
+          'deliveryDate': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Delivered! \$${(amountCents / 100).toStringAsFixed(2)} sent to your account.'),
+                'Order delivered! \$${total.toStringAsFixed(2)} sent to your account.'),
             backgroundColor: const Color(0xFF43A047),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -121,7 +138,7 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
         );
       }
     } finally {
-      if (mounted) setState(() => _delivering.remove(selectionId));
+      if (mounted) setState(() => _delivering.remove(orderId));
     }
   }
 
@@ -136,8 +153,7 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildHeader(),
-            if (_stripeAccountId == null)
-              _buildNoBankBanner(),
+            if (_stripeAccountId == null) _buildNoBankBanner(),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
@@ -170,32 +186,36 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                           const Text(
                             'No pending orders.',
                             style: TextStyle(
-                              fontSize: 15,
-                              color: Color(0xFF9B9B9B),
-                            ),
+                                fontSize: 15,
+                                color: Color(0xFF9B9B9B)),
                           ),
                           const SizedBox(height: 6),
                           const Text(
                             'New orders will appear here.',
                             style: TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF9B9B9B),
-                            ),
+                                fontSize: 13,
+                                color: Color(0xFF9B9B9B)),
                           ),
                         ],
                       ),
                     );
                   }
 
-                  final docs = snapshot.data!.docs;
+                  final grouped =
+                      _groupByOrder(snapshot.data!.docs);
+                  final orderGroups = grouped.entries.toList();
+
                   return ListView.separated(
                     padding: const EdgeInsets.fromLTRB(
                         20, 12, 20, 24),
-                    itemCount: docs.length,
+                    itemCount: orderGroups.length,
                     separatorBuilder: (_, __) =>
                         const SizedBox(height: 12),
-                    itemBuilder: (context, index) =>
-                        _buildOrderCard(docs[index]),
+                    itemBuilder: (context, index) {
+                      final entry = orderGroups[index];
+                      return _buildOrderCard(
+                          entry.key, entry.value);
+                    },
                   );
                 },
               ),
@@ -259,14 +279,20 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
     );
   }
 
-  Widget _buildOrderCard(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final mealName = data['mealName'] as String? ?? 'Meal';
-    final childName = data['childName'] as String? ?? '';
-    final qty = (data['quantity'] as num?)?.toInt() ?? 1;
-    final price = (data['price'] as num?)?.toDouble() ?? 0.0;
-    final total = price * qty;
-    final isDelivering = _delivering.contains(doc.id);
+  Widget _buildOrderCard(
+      String orderId, List<DocumentSnapshot> items) {
+    final firstData =
+        items.first.data() as Map<String, dynamic>;
+    final childName =
+        firstData['childName'] as String? ?? 'Student';
+    final isDelivering = _delivering.contains(orderId);
+
+    double total = 0;
+    for (final doc in items) {
+      final data = doc.data() as Map<String, dynamic>;
+      total += (data['price'] as num).toDouble() *
+          (data['quantity'] as num).toInt();
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -285,42 +311,28 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Child name header
             Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                     color: _pink.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.restaurant,
-                      color: _pink, size: 22),
+                  child: const Icon(Icons.person_outline,
+                      color: _pink, size: 20),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        mealName,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      Text(
-                        childName.isNotEmpty
-                            ? 'For: $childName'
-                            : '',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF9B9B9B),
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    childName,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1A1A1A),
+                    ),
                   ),
                 ),
                 Text(
@@ -333,15 +345,62 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                 ),
               ],
             ),
-            if (qty > 1) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Qty: $qty  ×  \$${price.toStringAsFixed(2)}',
-                style: const TextStyle(
-                    fontSize: 12, color: Color(0xFF9B9B9B)),
-              ),
-            ],
+            const SizedBox(height: 12),
+            const Divider(
+                height: 1, color: Color(0xFFF0F0F0)),
+            const SizedBox(height: 10),
+            // Meal items list
+            ...items.map((doc) {
+              final data =
+                  doc.data() as Map<String, dynamic>;
+              final mealName =
+                  data['mealName'] as String? ?? 'Meal';
+              final qty =
+                  (data['quantity'] as num?)?.toInt() ?? 1;
+              final price =
+                  (data['price'] as num?)?.toDouble() ?? 0.0;
+              return Padding(
+                padding:
+                    const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.restaurant,
+                        size: 16,
+                        color: Color(0xFF9B9B9B)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        mealName,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '× $qty',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF9B9B9B)),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      '\$${(price * qty).toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1A1A1A),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 6),
+            const Divider(
+                height: 1, color: Color(0xFFF0F0F0)),
             const SizedBox(height: 14),
+            // Deliver button
             SizedBox(
               width: double.infinity,
               height: 44,
@@ -366,8 +425,8 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                             BorderRadius.circular(22),
                       ),
                       child: ElevatedButton.icon(
-                        onPressed: () =>
-                            _markDelivered(doc),
+                        onPressed: () => _markDelivered(
+                            orderId, items),
                         style: ElevatedButton.styleFrom(
                           backgroundColor:
                               Colors.transparent,
