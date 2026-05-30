@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'firebase_options.dart';
 
 // Shared
@@ -8,26 +9,29 @@ import 'shared/screens/splash_screen.dart';
 import 'shared/screens/type_selection_screen.dart';
 
 // Parent
-import 'parent/screens/sign_in_screen.dart'              as parent_sign_in;
-import 'parent/screens/sign_up_screen.dart'              as parent_sign_up;
-import 'parent/screens/children_details_screen.dart'     as parent_children;
-import 'parent/screens/add_child_screen.dart'            as parent_add_child;
-import 'parent/screens/pending_approval_screen.dart'     as parent_pending;
-import 'parent/screens/home_shell.dart'                  as parent_home;
+import 'parent/screens/sign_in_screen.dart' as parent_sign_in;
+import 'parent/screens/sign_up_screen.dart' as parent_sign_up;
+import 'parent/screens/children_details_screen.dart' as parent_children;
+import 'parent/screens/add_child_screen.dart' as parent_add_child;
+import 'parent/screens/pending_approval_screen.dart' as parent_pending;
+import 'parent/screens/home_shell.dart' as parent_home;
+import 'parent/screens/edit_child_screen.dart' as parent_edit_child;
+import 'parent/screens/menu_page.dart' as parent_menu;
+import 'parent/screens/checkout_screen.dart' as parent_checkout;
 
 // Cafeteria
-import 'cafeteria/screens/sign_in_screen.dart'           as cafeteria_sign_in;
-import 'cafeteria/screens/sign_up_screen.dart'           as cafeteria_sign_up;
-import 'cafeteria/screens/pending_approval_screen.dart'  as cafeteria_pending;
-import 'cafeteria/screens/home_shell.dart'               as cafeteria_home;
-import 'cafeteria/screens/add_meal_screen.dart'          as cafeteria_add_meal;
-import 'cafeteria/screens/edit_meal_screen.dart'         as cafeteria_edit_meal;
+import 'cafeteria/screens/sign_in_screen.dart' as cafeteria_sign_in;
+import 'cafeteria/screens/sign_up_screen.dart' as cafeteria_sign_up;
+import 'cafeteria/screens/pending_approval_screen.dart' as cafeteria_pending;
+import 'cafeteria/screens/home_shell.dart' as cafeteria_home;
+import 'cafeteria/screens/add_meal_screen.dart' as cafeteria_add_meal;
+import 'cafeteria/screens/edit_meal_screen.dart' as cafeteria_edit_meal;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  Stripe.publishableKey =
+      'pk_test_51TbDDzBFFGRxl2nbKZ3K6NQPFIftKZHaOhObMRZgf9QYz3fimHkTjTOacmyAuU7YHMb4pUudTbKBOecwq0CW4PXe00pnzTFHBW';
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(const MealConnectApp());
 }
@@ -48,24 +52,36 @@ class MealConnectApp extends StatelessWidget {
       initialRoute: '/splash',
       routes: {
         // ── Shared ────────────────────────────────────────────────────────
-        '/splash':                  (context) => const SplashScreen(),
-        '/type-selection':          (context) => const TypeSelectionScreen(),
+        '/splash': (context) => const SplashScreen(),
+        '/type-selection': (context) => const TypeSelectionScreen(),
 
         // ── Parent ────────────────────────────────────────────────────────
-        '/parent-signin':           (context) => const parent_sign_in.SignInScreen(),
-        '/parent-signup':           (context) => const parent_sign_up.SignUpScreen(),
-        '/parent-children-details': (context) => const parent_children.ChildrenDetailsScreen(),
-        '/parent-add-child':        (context) => const parent_add_child.AddChildScreen(),
-        '/parent-pending':          (context) => const parent_pending.PendingApprovalScreen(),
-        '/parent-home':             (context) => const parent_home.HomeShell(),
+        '/parent-signin': (context) => const parent_sign_in.SignInScreen(),
+        '/parent-signup': (context) => const parent_sign_up.SignUpScreen(),
+        '/parent-children-details': (context) =>
+            const parent_children.ChildrenDetailsScreen(),
+        '/parent-add-child': (context) =>
+            const parent_add_child.AddChildScreen(),
+        '/parent-pending': (context) =>
+            const parent_pending.PendingApprovalScreen(),
+        '/parent-home': (context) => const parent_home.HomeShell(),
+        '/parent-edit-child': (context) =>
+            const parent_edit_child.EditChildScreen(),
+        '/parent-menu': (context) => const parent_menu.MenuPage(),
+        '/parent-checkout': (context) => const parent_checkout.CheckoutScreen(),
 
         // ── Cafeteria ─────────────────────────────────────────────────────
-        '/cafeteria-signin':        (context) => const cafeteria_sign_in.SignInScreen(),
-        '/cafeteria-signup':        (context) => const cafeteria_sign_up.SignUpScreen(),
-        '/cafeteria-pending':        (context) => const cafeteria_pending.PendingApprovalScreen(),
-        '/cafeteria-home':           (context) => const cafeteria_home.HomeShell(),
-        '/cafeteria-add-meal':       (context) => const cafeteria_add_meal.AddMealScreen(),
-        '/cafeteria-edit-meal':      (context) => const cafeteria_edit_meal.EditMealScreen(),
+        '/cafeteria-signin': (context) =>
+            const cafeteria_sign_in.SignInScreen(),
+        '/cafeteria-signup': (context) =>
+            const cafeteria_sign_up.SignUpScreen(),
+        '/cafeteria-pending': (context) =>
+            const cafeteria_pending.PendingApprovalScreen(),
+        '/cafeteria-home': (context) => const cafeteria_home.HomeShell(),
+        '/cafeteria-add-meal': (context) =>
+            const cafeteria_add_meal.AddMealScreen(),
+        '/cafeteria-edit-meal': (context) =>
+            const cafeteria_edit_meal.EditMealScreen(),
       },
     );
   }

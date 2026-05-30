@@ -41,13 +41,11 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // ── Wallet balance header ─────────────────────────────────────────────────
-
   Widget _buildWalletHeader(double balance) {
     return Column(
       children: [
         Text(
-          '\$${balance.toStringAsFixed(0)}',
+          '\$${balance.toStringAsFixed(2)}',
           style: const TextStyle(
             fontSize: 44,
             fontWeight: FontWeight.w700,
@@ -66,8 +64,6 @@ class HomePage extends StatelessWidget {
       ],
     );
   }
-
-  // ── Children list ─────────────────────────────────────────────────────────
 
   Widget _buildChildrenList(
       BuildContext context, String uid, double balance) {
@@ -94,7 +90,7 @@ class HomePage extends StatelessWidget {
               final data = doc.data() as Map<String, dynamic>;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: _buildChildCard(data, balance),
+                child: _buildChildCard(context, doc.id, data, balance),
               );
             }),
             _buildAddChildButton(context),
@@ -105,122 +101,227 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // ── Child card ────────────────────────────────────────────────────────────
-
-  Widget _buildChildCard(Map<String, dynamic> data, double balance) {
+  Widget _buildChildCard(
+    BuildContext context,
+    String childId,
+    Map<String, dynamic> data,
+    double balance,
+  ) {
     final name = (data['name'] as String?) ?? 'Child';
     final school = (data['schoolName'] as String?) ?? '';
     final schoolId = (data['classRollNo'] as String?) ?? '';
+    final verificationStatus =
+        (data['verificationStatus'] as String?) ?? 'pending';
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.07),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Avatar
-          Container(
-            width: 54,
-            height: 54,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [_pink, _orange],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+    final isApproved = verificationStatus == 'approved';
+
+    return GestureDetector(
+      onTap: isApproved
+          ? () => Navigator.pushNamed(
+                context,
+                '/parent-menu',
+                arguments: {
+                  'childId': childId,
+                  'name': name,
+                  'schoolId': (data['schoolId'] as String?) ?? '',
+                },
+              )
+          : null,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.07),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
-            child: Center(
-              child: Text(
-                initial,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Avatar
+            Container(
+              width: 54,
+              height: 54,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [_pink, _orange],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
 
-          // Middle info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            // Middle info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1A1A1A),
+                          ),
+                        ),
+                      ),
+                      _buildVerificationBadge(verificationStatus),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  if (school.isNotEmpty)
+                    Text(
+                      school,
+                      style: const TextStyle(
+                          fontSize: 13, color: Color(0xFF9B9B9B)),
+                    ),
+                  if (schoolId.isNotEmpty)
+                    Text(
+                      schoolId,
+                      style: const TextStyle(
+                          fontSize: 13, color: Color(0xFF9B9B9B)),
+                    ),
+                  const SizedBox(height: 2),
+                  _infoRow('Type:', 'Wallet Balance'),
+                  _infoRow('Duration:', 'Weekly'),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Right side: Edit + wallet balance
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                GestureDetector(
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    '/parent-edit-child',
+                    arguments: {'childId': childId, 'data': data},
+                  ),
+                  child: const Text(
+                    'Edit',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _orange,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
                 Text(
-                  name,
+                  '\$${balance.toStringAsFixed(2)}',
                   style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                     color: Color(0xFF1A1A1A),
                   ),
                 ),
-                const SizedBox(height: 2),
-                if (school.isNotEmpty)
-                  Text(
-                    school,
-                    style: const TextStyle(
-                        fontSize: 13, color: Color(0xFF9B9B9B)),
+                const Text(
+                  'Wallet balance',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Color(0xFF9B9B9B),
                   ),
-                if (schoolId.isNotEmpty)
-                  Text(
-                    schoolId,
-                    style: const TextStyle(
-                        fontSize: 13, color: Color(0xFF9B9B9B)),
-                  ),
-                const SizedBox(height: 2),
-                _infoRow('Type:', 'Wallet Balance'),
-                _infoRow('Duration:', 'Weekly'),
+                ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
+          ],
+        ),
+      ),
+    );
+  }
 
-          // Right side: Edit + wallet balance
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              const Text(
-                'Edit',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _orange,
-                ),
-              ),
-              const SizedBox(height: 10),
+  Widget _buildVerificationBadge(String status) {
+    switch (status) {
+      case 'approved':
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F5E9),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.check_circle, size: 12, color: Color(0xFF43A047)),
+              SizedBox(width: 3),
               Text(
-                '\$${balance.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-              const Text(
-                'Wallet balance',
+                'Verified',
                 style: TextStyle(
-                  fontSize: 10,
-                  color: Color(0xFF9B9B9B),
-                ),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF43A047)),
               ),
             ],
           ),
-        ],
-      ),
-    );
+        );
+      case 'rejected':
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFEBEE),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.cancel, size: 12, color: Color(0xFFE53935)),
+              SizedBox(width: 3),
+              Text(
+                'Rejected',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFE53935)),
+              ),
+            ],
+          ),
+        );
+      default:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF8E1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.hourglass_empty, size: 12, color: Color(0xFFF5A623)),
+              SizedBox(width: 3),
+              Text(
+                'Pending',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFF5A623)),
+              ),
+            ],
+          ),
+        );
+    }
   }
 
   Widget _infoRow(String label, String value) {
@@ -241,12 +342,9 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // ── Add child button ──────────────────────────────────────────────────────
-
   Widget _buildAddChildButton(BuildContext context) {
     return GestureDetector(
-      onTap: () =>
-          Navigator.pushNamed(context, '/parent-add-child'),
+      onTap: () => Navigator.pushNamed(context, '/parent-add-child'),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 18),

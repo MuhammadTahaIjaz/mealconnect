@@ -1,6 +1,7 @@
 # Claude Code context (local only, never push)
 CLAUDE.md
 .claude/
+.claudeignore
 
 # Local design assets (XD exports, never push)
 designs/

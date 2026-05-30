@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import 'profile_page.dart';
+import 'privacy_policy_page.dart';
+import 'terms_conditions_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -26,22 +29,29 @@ class SettingsPage extends StatelessWidget {
             const SizedBox(height: 32),
             _buildItem(
               label: 'Profile',
-              onTap: () {},
-            ),
-            _buildDivider(),
-            _buildItem(
-              label: 'History',
-              onTap: () {},
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ProfilePage()),
+              ),
             ),
             _buildDivider(),
             _buildItem(
               label: 'Privacy Policy',
-              onTap: () {},
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const PrivacyPolicyPage()),
+              ),
             ),
             _buildDivider(),
             _buildItem(
               label: 'Terms & Conditions',
-              onTap: () {},
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const TermsConditionsPage()),
+              ),
             ),
             _buildDivider(),
             _buildItem(
