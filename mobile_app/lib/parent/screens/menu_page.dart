@@ -418,7 +418,7 @@ class _MenuPageState extends State<MenuPage> {
             crossAxisCount: 2,
             crossAxisSpacing: 14,
             mainAxisSpacing: 14,
-            childAspectRatio: 0.78,
+            childAspectRatio: 0.72,
           ),
           itemCount: filtered.length,
           itemBuilder: (context, i) {
@@ -468,7 +468,7 @@ class _MenuPageState extends State<MenuPage> {
             child: imageUrl.isNotEmpty
                 ? Image.network(
                     imageUrl,
-                    height: 110,
+                    height: 100,
                     width: double.infinity,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => _imageFallback(),
@@ -583,7 +583,7 @@ class _MenuPageState extends State<MenuPage> {
 
   Widget _imageFallback() {
     return Container(
-      height: 110,
+      height: 100,
       width: double.infinity,
       color: const Color(0xFFF7F8FC),
       child: const Icon(Icons.fastfood_outlined,
