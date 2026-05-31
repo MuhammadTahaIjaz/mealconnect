@@ -420,7 +420,13 @@ class _CafeteriaHistoryPageState
   }
 
   String _timeStr(DateTime dt) {
-    return '${dt.hour.toString().padLeft(2, '0')}:'
+    const mo = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final date = '${dt.day} ${mo[dt.month - 1]}';
+    final time = '${dt.hour.toString().padLeft(2, '0')}:'
         '${dt.minute.toString().padLeft(2, '0')}';
+    return '$date  •  $time';
   }
 }
