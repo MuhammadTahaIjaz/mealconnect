@@ -104,6 +104,7 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
     setState(() => _isProcessing = true);
 
     try {
+      await Stripe.instance.applySettings();
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final amountCents = (widget.amount * 100).toInt();
 
