@@ -15,6 +15,7 @@ class _MenuPageState extends State<MenuPage> {
   late final String _childId;
   late final String _childName;
   late final String _schoolId;
+  late final String _childRollNo;
 
   bool _initialized = false;
   String _searchQuery = '';
@@ -44,6 +45,7 @@ class _MenuPageState extends State<MenuPage> {
     _childId = (args?['childId'] as String?) ?? '';
     _childName = (args?['name'] as String?) ?? 'Child';
     _schoolId = (args?['schoolId'] as String?) ?? '';
+    _childRollNo = (args?['classRollNo'] as String?) ?? '';
   }
 
   @override
@@ -89,6 +91,7 @@ class _MenuPageState extends State<MenuPage> {
       'cart': cartList,
       'childId': _childId,
       'childName': _childName,
+      'childRollNo': _childRollNo,
     });
   }
 
