@@ -589,6 +589,8 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
         items.first.data() as Map<String, dynamic>;
     final childName =
         firstData['childName'] as String? ?? 'Student';
+    final childRollNo =
+        firstData['childRollNo'] as String? ?? '';
     final isDelivering = _delivering.contains(orderId);
 
     double total = 0;
@@ -629,13 +631,26 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    childName,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A1A1A),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        childName,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      if (childRollNo.isNotEmpty)
+                        Text(
+                          'ID: $childRollNo',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF9B9B9B),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 Text(

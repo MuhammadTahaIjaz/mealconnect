@@ -25,6 +25,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String? _error;
 
   double _walletBalance = 0;
+  String _childRollNo = '';
 
   @override
   void didChangeDependencies() {
@@ -48,14 +49,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _loadParentData() async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
-    final doc = await FirebaseFirestore.instance
-        .collection('parents')
-        .doc(uid)
-        .get();
+    final results = await Future.wait([
+      FirebaseFirestore.instance.collection('parents').doc(uid).get(),
+      FirebaseFirestore.instance.collection('children').doc(_childId).get(),
+    ]);
     if (!mounted) return;
     setState(() {
       _walletBalance =
-          (doc.data()?['walletBalance'] as num?)?.toDouble() ?? 0;
+          (results[0].data()?['walletBalance'] as num?)?.toDouble() ?? 0;
+      _childRollNo =
+          (results[1].data()?['classRollNo'] as String?) ?? '';
       _dataLoaded = true;
     });
   }
@@ -91,6 +94,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           'orderId': orderId,
           'childId': _childId,
           'childName': _childName,
+          'childRollNo': _childRollNo,
           'mealId': item['mealId'],
           'parentId': uid,
           'cafeteriaId': item['cafeteriaId'] ?? '',
