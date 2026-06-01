@@ -36,6 +36,7 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
 
   Future<void> _loadCustomerData() async {
     try {
+      await Stripe.instance.applySettings();
       final user = FirebaseAuth.instance.currentUser!;
       final uid = user.uid;
 
