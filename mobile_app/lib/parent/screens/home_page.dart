@@ -125,6 +125,7 @@ class HomePage extends StatelessWidget {
                   'childId': childId,
                   'name': name,
                   'schoolId': (data['schoolId'] as String?) ?? '',
+                  'classRollNo': (data['classRollNo'] as String?) ?? '',
                 },
               )
           : null,

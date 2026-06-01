@@ -38,6 +38,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _cart = (args['cart'] as List).cast<Map<String, dynamic>>();
     _childId = args['childId'] as String;
     _childName = args['childName'] as String;
+    _childRollNo = (args['childRollNo'] as String?) ?? '';
     _total = _cart.fold<double>(
       0,
       (acc, item) =>
@@ -49,16 +50,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _loadParentData() async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
-    final results = await Future.wait([
-      FirebaseFirestore.instance.collection('parents').doc(uid).get(),
-      FirebaseFirestore.instance.collection('children').doc(_childId).get(),
-    ]);
+    final doc = await FirebaseFirestore.instance
+        .collection('parents')
+        .doc(uid)
+        .get();
     if (!mounted) return;
     setState(() {
       _walletBalance =
-          (results[0].data()?['walletBalance'] as num?)?.toDouble() ?? 0;
-      _childRollNo =
-          (results[1].data()?['classRollNo'] as String?) ?? '';
+          (doc.data()?['walletBalance'] as num?)?.toDouble() ?? 0;
       _dataLoaded = true;
     });
   }
