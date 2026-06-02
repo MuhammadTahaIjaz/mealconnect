@@ -148,9 +148,9 @@ class _SidebarItemState extends State<_SidebarItem> {
     final showHighlight = widget.isActive || _hovered;
     final disabled = widget.isDisabled && !widget.isActive;
 
-    // Hover colour: pink when normal, grey when disabled
+    // Hover colour: pink tint when normal, nothing when disabled
     final hoverBg = disabled
-        ? const Color(0xFFF0F0F0)
+        ? Colors.transparent
         : AppColors.primaryPink.withValues(alpha: 0.07);
     final iconColor = widget.isActive
         ? Colors.white
