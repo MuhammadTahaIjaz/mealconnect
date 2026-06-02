@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 
 class UserRecord {
@@ -40,8 +41,11 @@ class UsersController extends GetxController {
   Future<void> fetchUsers() async {
     isLoading.value = true;
     try {
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
       final snapshot = await _db.collection('users').get();
-      users.value = snapshot.docs.map((doc) {
+      users.value = snapshot.docs
+          .where((doc) => doc.id != currentUid)
+          .map((doc) {
         final data = doc.data();
         return UserRecord(
           userId:    doc.id,
