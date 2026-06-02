@@ -676,6 +676,9 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
     final childRollNo =
         firstData['childRollNo'] as String? ?? '';
     final isDelivering = _delivering.contains(orderId);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final isFuture = _selectedDay.isAfter(today);
 
     double total = 0;
     for (final doc in items) {
@@ -798,14 +801,22 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                                       _pink))))
                   : DecoratedBox(
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                            colors: [_pink, _orange]),
+                        gradient: LinearGradient(
+                          colors: isFuture
+                              ? [
+                                  const Color(0xFFCCCCCC),
+                                  const Color(0xFFCCCCCC)
+                                ]
+                              : const [_pink, _orange],
+                        ),
                         borderRadius:
                             BorderRadius.circular(22),
                       ),
                       child: ElevatedButton.icon(
-                        onPressed: () =>
-                            _markDelivered(orderId, items),
+                        onPressed: isFuture
+                            ? null
+                            : () => _markDelivered(
+                                orderId, items),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
@@ -813,12 +824,17 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                               borderRadius:
                                   BorderRadius.circular(22)),
                         ),
-                        icon: const Icon(
-                            Icons.check_circle_outline,
+                        icon: Icon(
+                            isFuture
+                                ? Icons.schedule_outlined
+                                : Icons.check_circle_outline,
                             color: Colors.white,
                             size: 18),
-                        label: const Text('MARK AS DELIVERED',
-                            style: TextStyle(
+                        label: Text(
+                            isFuture
+                                ? 'AVAILABLE ON DELIVERY DAY'
+                                : 'MARK AS DELIVERED',
+                            style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.white,
