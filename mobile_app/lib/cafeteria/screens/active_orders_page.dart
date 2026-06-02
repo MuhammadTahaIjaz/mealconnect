@@ -23,6 +23,9 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
   // Cafeteria info
   String _cafeteriaSchoolId = '';
 
+  // Week day filter — selected day (default: today)
+  late DateTime _selectedDay;
+
   // Student search
   final _searchController = TextEditingController();
   bool _isSearching = false;
@@ -33,6 +36,8 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _selectedDay = DateTime(now.year, now.month, now.day);
     _loadCafeteriaInfo();
   }
 
@@ -57,32 +62,52 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
     });
   }
 
+  // Returns Mon–Sun of the current week
+  List<DateTime> _getCurrentWeekDays() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+    return List.generate(
+        7, (i) => monday.add(Duration(days: i)));
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  bool _matchesSelectedDay(Map<String, dynamic> data) {
+    final deliveryTs = data['deliveryDate'] as Timestamp?;
+    if (deliveryTs == null) {
+      // Old orders without deliveryDate: show on today
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      return _isSameDay(_selectedDay, today);
+    }
+    final d = deliveryTs.toDate();
+    return _isSameDay(
+        _selectedDay, DateTime(d.year, d.month, d.day));
+  }
+
   Future<void> _searchChild() async {
     final query = _searchController.text.trim();
     if (query.isEmpty) return;
     FocusScope.of(context).unfocus();
-
     setState(() {
       _isSearching = true;
       _searchError = null;
       _foundChild = null;
       _foundChildId = null;
     });
-
     try {
       final snap = await FirebaseFirestore.instance
           .collection('children')
           .where('classRollNo', isEqualTo: query)
           .get();
-
       final matches = snap.docs
           .where((d) =>
               (d.data()['schoolId'] as String?) ==
               _cafeteriaSchoolId)
           .toList();
-
       if (!mounted) return;
-
       if (matches.isEmpty) {
         setState(() {
           _searchError =
@@ -91,7 +116,6 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
         });
         return;
       }
-
       setState(() {
         _foundChild = matches.first.data();
         _foundChildId = matches.first.id;
@@ -100,7 +124,8 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _searchError = 'Search failed. Check your connection.';
+          _searchError =
+              'Search failed. Check your connection.';
           _isSearching = false;
         });
       }
@@ -133,23 +158,18 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
   Future<void> _markDelivered(
       String orderId, List<DocumentSnapshot> items) async {
     if (_delivering.contains(orderId)) return;
-
     if (_stripeAccountId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-              'Connect your bank account in Settings → Bank Account first.'),
-          backgroundColor: const Color(0xFFE53935),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text(
+            'Connect your bank account in Settings → Bank Account first.'),
+        backgroundColor: const Color(0xFFE53935),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10)),
+      ));
       return;
     }
-
     setState(() => _delivering.add(orderId));
-
     try {
       double total = 0;
       for (final doc in items) {
@@ -168,7 +188,6 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
           'selectionId': orderId,
         }),
       );
-
       if (response.statusCode != 200) {
         throw jsonDecode(response.body)['error'] ??
             'Transfer failed';
@@ -186,28 +205,24 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
       await batch.commit();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Order delivered! \$${total.toStringAsFixed(2)} sent to your account.'),
-            backgroundColor: const Color(0xFF43A047),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10)),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Order delivered! \$${total.toStringAsFixed(2)} sent to your account.'),
+          backgroundColor: const Color(0xFF43A047),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10)),
+        ));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: const Color(0xFFE53935),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10)),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: const Color(0xFFE53935),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10)),
+        ));
       }
     } finally {
       if (mounted) setState(() => _delivering.remove(orderId));
@@ -217,7 +232,6 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser!.uid;
-
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FC),
       body: SafeArea(
@@ -225,16 +239,14 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildHeader(),
+            _buildWeekFilter(),
             _buildSearchBar(),
             if (_stripeAccountId == null) _buildNoBankBanner(),
             Expanded(
               child: _isSearching
                   ? const Center(
                       child: CircularProgressIndicator(
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(_pink),
-                      ),
-                    )
+                          valueColor: AlwaysStoppedAnimation<Color>(_pink)))
                   : _searchError != null
                       ? _buildSearchError()
                       : StreamBuilder<QuerySnapshot>(
@@ -248,17 +260,21 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                                 ConnectionState.waiting) {
                               return const Center(
                                 child: CircularProgressIndicator(
-                                  valueColor:
-                                      AlwaysStoppedAnimation<Color>(
-                                          _pink),
-                                ),
-                              );
+                                    valueColor:
+                                        AlwaysStoppedAnimation<Color>(
+                                            _pink)));
                             }
 
-                            var docs =
-                                snapshot.data?.docs ?? [];
+                            var docs = snapshot.data?.docs ?? [];
 
-                            // Filter to specific child if search active
+                            // Filter by selected day
+                            docs = docs
+                                .where((doc) => _matchesSelectedDay(
+                                    doc.data()
+                                        as Map<String, dynamic>))
+                                .toList();
+
+                            // Filter by found child if search active
                             if (_foundChildId != null) {
                               docs = docs
                                   .where((doc) =>
@@ -276,14 +292,12 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                               padding: const EdgeInsets.fromLTRB(
                                   20, 8, 20, 24),
                               children: [
-                                // Student card shown when search active
                                 if (_foundChild != null)
                                   _buildStudentCard(),
                                 if (orderGroups.isEmpty)
                                   _buildEmptyState()
                                 else
-                                  ...orderGroups.map((e) =>
-                                      Padding(
+                                  ...orderGroups.map((e) => Padding(
                                         padding:
                                             const EdgeInsets.only(
                                                 bottom: 12),
@@ -303,32 +317,124 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
 
   Widget _buildHeader() {
     return const Padding(
-      padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
+      padding: EdgeInsets.fromLTRB(20, 24, 20, 8),
       child: Column(
         children: [
           Text(
             'ACTIVE ORDERS',
             style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.8,
-              color: Color(0xFF1A1A1A),
-            ),
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.8,
+                color: Color(0xFF1A1A1A)),
           ),
           SizedBox(height: 4),
           Text(
             'Tap deliver when meal is handed to the student',
-            style:
-                TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
+            style: TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildWeekFilter() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final weekDays = _getCurrentWeekDays();
+    const shortDay = [
+      '', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'
+    ];
+
+    return SizedBox(
+      height: 62,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+        itemCount: weekDays.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final day = weekDays[i];
+          final isPast = day.isBefore(today);
+          final isToday = _isSameDay(day, today);
+          final isSelected = _isSameDay(day, _selectedDay);
+
+          return GestureDetector(
+            onTap: isPast ? null : () => setState(() => _selectedDay = day),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 50,
+              decoration: BoxDecoration(
+                gradient: isSelected
+                    ? const LinearGradient(colors: [_pink, _orange])
+                    : null,
+                color: isSelected
+                    ? null
+                    : isPast
+                        ? const Color(0xFFF0F0F0)
+                        : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: isSelected || isPast
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    shortDay[day.weekday],
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected
+                          ? Colors.white
+                          : isPast
+                              ? const Color(0xFFCCCCCC)
+                              : const Color(0xFF9B9B9B),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${day.day}',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? Colors.white
+                          : isPast
+                              ? const Color(0xFFCCCCCC)
+                              : const Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  if (isToday)
+                    Container(
+                      width: 4,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isSelected
+                            ? Colors.white70
+                            : _pink,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
       child: Row(
         children: [
           Expanded(
@@ -351,7 +457,7 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                 style: const TextStyle(
                     fontSize: 14, color: Color(0xFF1A1A1A)),
                 decoration: InputDecoration(
-                  hintText: "Search by student ID…",
+                  hintText: 'Search by student ID…',
                   hintStyle: const TextStyle(
                       color: Color(0xFF9B9B9B), fontSize: 14),
                   prefixIcon: const Icon(Icons.badge_outlined,
@@ -375,8 +481,8 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide:
-                        const BorderSide(color: _pink, width: 1.5),
+                    borderSide: const BorderSide(
+                        color: _pink, width: 1.5),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 14),
@@ -407,8 +513,8 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
   Widget _buildNoBankBanner() {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 6),
-      padding: const EdgeInsets.symmetric(
-          horizontal: 14, vertical: 10),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFFFFF8E1),
         borderRadius: BorderRadius.circular(10),
@@ -423,8 +529,8 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
           Expanded(
             child: Text(
               'Go to Settings → Bank Account to receive payments.',
-              style: TextStyle(
-                  fontSize: 12, color: Color(0xFF8B6900)),
+              style:
+                  TextStyle(fontSize: 12, color: Color(0xFF8B6900)),
             ),
           ),
         ],
@@ -442,12 +548,10 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
             Icon(Icons.person_search_outlined,
                 size: 60, color: Colors.grey.shade300),
             const SizedBox(height: 14),
-            Text(
-              _searchError!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  fontSize: 14, color: Color(0xFF9B9B9B)),
-            ),
+            Text(_searchError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 14, color: Color(0xFF9B9B9B))),
           ],
         ),
       ),
@@ -461,7 +565,6 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
         (_foundChild!['classRollNo'] as String?) ?? '';
     final initial =
         name.isNotEmpty ? name[0].toUpperCase() : '?';
-
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -483,18 +586,15 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
             height: 46,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                  colors: [_pink, _orange]),
+              gradient:
+                  LinearGradient(colors: [_pink, _orange]),
             ),
             child: Center(
-              child: Text(
-                initial,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
+              child: Text(initial,
+                  style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white)),
             ),
           ),
           const SizedBox(width: 12),
@@ -502,21 +602,16 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-                if (rollNo.isNotEmpty)
-                  Text(
-                    'ID: $rollNo',
+                Text(name,
                     style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF9B9B9B)),
-                  ),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1A1A1A))),
+                if (rollNo.isNotEmpty)
+                  Text('ID: $rollNo',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF9B9B9B))),
               ],
             ),
           ),
@@ -533,14 +628,11 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                 Icon(Icons.check_circle,
                     size: 12, color: Color(0xFF43A047)),
                 SizedBox(width: 4),
-                Text(
-                  'Found',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF43A047),
-                  ),
-                ),
+                Text('Found',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF43A047))),
               ],
             ),
           ),
@@ -565,19 +657,11 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
           const SizedBox(height: 16),
           Text(
             _foundChild != null
-                ? 'No pending orders for this student.'
-                : 'No pending orders.',
+                ? 'No pending orders for this student on this day.'
+                : 'No pending orders for this day.',
             style: const TextStyle(
                 fontSize: 15, color: Color(0xFF9B9B9B)),
           ),
-          if (_foundChild == null) ...[
-            const SizedBox(height: 6),
-            const Text(
-              'New orders will appear here.',
-              style: TextStyle(
-                  fontSize: 13, color: Color(0xFF9B9B9B)),
-            ),
-          ],
         ],
       ),
     );
@@ -632,39 +716,32 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        childName,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      if (childRollNo.isNotEmpty)
-                        Text(
-                          'ID: $childRollNo',
+                      Text(childName,
                           style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF9B9B9B),
-                          ),
-                        ),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1A1A1A))),
+                      if (childRollNo.isNotEmpty)
+                        Text('ID: $childRollNo',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF9B9B9B))),
                     ],
                   ),
                 ),
-                Text(
-                  '\$${total.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: _pink,
-                  ),
-                ),
+                Text('\$${total.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _pink)),
               ],
             ),
             const SizedBox(height: 12),
-            const Divider(height: 1, color: Color(0xFFF0F0F0)),
+            const Divider(
+                height: 1, color: Color(0xFFF0F0F0)),
             const SizedBox(height: 10),
             ...items.map((doc) {
               final data =
@@ -680,38 +757,31 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                 child: Row(
                   children: [
                     const Icon(Icons.restaurant,
-                        size: 16,
-                        color: Color(0xFF9B9B9B)),
+                        size: 16, color: Color(0xFF9B9B9B)),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        mealName,
+                        child: Text(mealName,
+                            style: const TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF1A1A1A)))),
+                    Text('× $qty',
                         style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF1A1A1A)),
-                      ),
-                    ),
-                    Text(
-                      '× $qty',
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF9B9B9B)),
-                    ),
+                            fontSize: 13,
+                            color: Color(0xFF9B9B9B))),
                     const SizedBox(width: 12),
                     Text(
-                      '\$${(price * qty).toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1A1A1A),
-                      ),
-                    ),
+                        '\$${(price * qty).toStringAsFixed(2)}',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1A1A1A))),
                   ],
                 ),
               );
             }),
             const SizedBox(height: 6),
-            const Divider(height: 1, color: Color(0xFFF0F0F0)),
+            const Divider(
+                height: 1, color: Color(0xFFF0F0F0)),
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
@@ -719,15 +789,13 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
               child: isDelivering
                   ? const Center(
                       child: SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(_pink),
-                        ),
-                      ),
-                    )
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(
+                                      _pink))))
                   : DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
@@ -749,15 +817,12 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                             Icons.check_circle_outline,
                             color: Colors.white,
                             size: 18),
-                        label: const Text(
-                          'MARK AS DELIVERED',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
+                        label: const Text('MARK AS DELIVERED',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: 0.8)),
                       ),
                     ),
             ),

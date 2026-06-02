@@ -39,11 +39,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _childId = args['childId'] as String;
     _childName = args['childName'] as String;
     _childRollNo = (args['childRollNo'] as String?) ?? '';
-    _total = _cart.fold<double>(
-      0,
-      (acc, item) =>
-          acc + (item['price'] as double) * (item['qty'] as int),
-    );
+    _total = _cart.fold<double>(0, (acc, item) {
+      final days = (item['days'] as List<dynamic>?) ?? [];
+      return acc + days.fold<double>(0, (s, d) {
+        final day = d as Map<String, dynamic>;
+        return s + (item['price'] as double) * (day['qty'] as int);
+      });
+    });
 
     _loadParentData();
   }
@@ -87,23 +89,30 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final orderId = db.collection('mealSelections').doc().id;
 
       for (final item in _cart) {
-        final ref = db.collection('mealSelections').doc();
-        batch.set(ref, {
-          'selectionId': ref.id,
-          'orderId': orderId,
-          'childId': _childId,
-          'childName': _childName,
-          'childRollNo': _childRollNo,
-          'mealId': item['mealId'],
-          'parentId': uid,
-          'cafeteriaId': item['cafeteriaId'] ?? '',
-          'mealName': item['mealName'],
-          'price': item['price'],
-          'quantity': item['qty'],
-          'selectionDate': FieldValue.serverTimestamp(),
-          'status': 'pending',
-          'isDelivered': false,
-        });
+        final days = (item['days'] as List<dynamic>?) ?? [];
+        for (final dayEntry in days) {
+          final day = dayEntry as Map<String, dynamic>;
+          final ref = db.collection('mealSelections').doc();
+          batch.set(ref, {
+            'selectionId': ref.id,
+            'orderId': orderId,
+            'childId': _childId,
+            'childName': _childName,
+            'childRollNo': _childRollNo,
+            'mealId': item['mealId'],
+            'parentId': uid,
+            'cafeteriaId': item['cafeteriaId'] ?? '',
+            'mealName': item['mealName'],
+            'price': item['price'],
+            'quantity': day['qty'],
+            'deliveryDate':
+                Timestamp.fromDate(day['date'] as DateTime),
+            'deliveryDay': day['dayName'],
+            'selectionDate': FieldValue.serverTimestamp(),
+            'status': 'pending',
+            'isDelivered': false,
+          });
+        }
       }
 
       batch.update(db.collection('parents').doc(uid), {
@@ -262,34 +271,79 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return _section(
       title: 'Order Summary',
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ..._cart.map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
+          ..._cart.map((item) {
+            final days = (item['days'] as List<dynamic>?) ?? [];
+            final mealTotal = days.fold<double>(0, (s, d) {
+              final day = d as Map<String, dynamic>;
+              return s +
+                  (item['price'] as double) * (day['qty'] as int);
+            });
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
                         item['mealName'] as String,
                         style: const TextStyle(
-                            fontSize: 14, color: Color(0xFF1A1A1A)),
-                      ),
-                    ),
-                    Text(
-                      '× ${item['qty']}',
-                      style: const TextStyle(
-                          fontSize: 13, color: Color(0xFF9B9B9B)),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      '\$${((item['price'] as double) * (item['qty'] as int)).toStringAsFixed(2)}',
-                      style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF1A1A1A)),
-                    ),
-                  ],
-                ),
-              )),
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      Text(
+                        '\$${mealTotal.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  ...days.map((d) {
+                    final day = d as Map<String, dynamic>;
+                    final date = day['date'] as DateTime;
+                    final dayName = day['dayName'] as String;
+                    final qty = day['qty'] as int;
+                    final price = item['price'] as double;
+                    const mo = [
+                      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May',
+                      'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+                    ];
+                    return Padding(
+                      padding:
+                          const EdgeInsets.only(top: 4, left: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '$dayName, ${mo[date.month]} ${date.day}',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF9B9B9B)),
+                            ),
+                          ),
+                          Text(
+                            '× $qty   \$${(price * qty).toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF9B9B9B)),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            );
+          }),
           const Divider(color: Color(0xFFEEEEEE)),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

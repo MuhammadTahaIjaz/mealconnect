@@ -202,7 +202,7 @@ class _HistoryPageState extends State<HistoryPage> {
     final ts = first['selectionDate'] as Timestamp?;
     final timeStr =
         ts != null ? _timeStr(ts.toDate()) : '';
-    final isDelivered = first['isDelivered'] == true;
+    final status = _orderStatus(first);
 
     double total = 0;
     for (final doc in items) {
@@ -316,7 +316,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   color: Color(0xFF1A1A1A),
                 ),
               ),
-              _statusBadge(isDelivered),
+              _statusBadge(status),
             ],
           ),
         ],
@@ -324,39 +324,65 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _statusBadge(bool delivered) {
+  // status: 'delivered' | 'pending' | 'expired'
+  String _orderStatus(Map<String, dynamic> first) {
+    if (first['isDelivered'] == true) return 'delivered';
+    final deliveryTs = first['deliveryDate'] as Timestamp?;
+    if (deliveryTs != null) {
+      final deliveryDay = deliveryTs.toDate();
+      final today = DateTime.now();
+      final todayMidnight =
+          DateTime(today.year, today.month, today.day);
+      final deliveryMidnight = DateTime(
+          deliveryDay.year, deliveryDay.month, deliveryDay.day);
+      if (deliveryMidnight.isBefore(todayMidnight)) {
+        return 'expired';
+      }
+    }
+    return 'pending';
+  }
+
+  Widget _statusBadge(String status) {
+    final Color bg;
+    final Color fg;
+    final IconData icon;
+    final String label;
+    switch (status) {
+      case 'delivered':
+        bg = const Color(0xFFE8F5E9);
+        fg = const Color(0xFF43A047);
+        icon = Icons.check_circle;
+        label = 'Delivered';
+        break;
+      case 'expired':
+        bg = const Color(0xFFFFEBEE);
+        fg = const Color(0xFFE53935);
+        icon = Icons.cancel_outlined;
+        label = 'Expired';
+        break;
+      default:
+        bg = const Color(0xFFFFF8E1);
+        fg = const Color(0xFFF5A623);
+        icon = Icons.hourglass_empty;
+        label = 'Pending';
+    }
     return Container(
       padding:
           const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: delivered
-            ? const Color(0xFFE8F5E9)
-            : const Color(0xFFFFF8E1),
+        color: bg,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            delivered
-                ? Icons.check_circle
-                : Icons.hourglass_empty,
-            size: 10,
-            color: delivered
-                ? const Color(0xFF43A047)
-                : const Color(0xFFF5A623),
-          ),
+          Icon(icon, size: 10, color: fg),
           const SizedBox(width: 3),
-          Text(
-            delivered ? 'Delivered' : 'Pending',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: delivered
-                  ? const Color(0xFF43A047)
-                  : const Color(0xFFF5A623),
-            ),
-          ),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: fg)),
         ],
       ),
     );
