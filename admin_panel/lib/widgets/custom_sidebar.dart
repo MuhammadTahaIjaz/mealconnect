@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../app/theme/app_colors.dart';
 import '../features/auth/controllers/auth_controller.dart';
+import '../features/dashboard/controllers/dashboard_controller.dart';
 import '../features/home/controllers/home_controller.dart';
 
 class CustomSidebar extends StatelessWidget {
@@ -66,19 +67,45 @@ class CustomSidebar extends StatelessWidget {
           const SizedBox(height: 12),
 
           Expanded(
-            child: Obx(() => Column(
-                  children: List.generate(_items.length, (i) {
-                    final item = _items[i];
-                    final isActive = home.selectedIndex.value == i;
-                    return _SidebarItem(
-                      icon: item['icon'] as IconData,
-                      activeIcon: item['activeIcon'] as IconData,
-                      label: item['label'] as String,
-                      isActive: isActive,
-                      onTap: () => home.selectIndex(i),
-                    );
-                  }),
-                )),
+            child: Obx(() {
+              // Safely read pending counts from DashboardController
+              DashboardController? dash;
+              try {
+                dash = Get.find<DashboardController>();
+              } catch (_) {}
+
+              return Column(
+                children: List.generate(_items.length, (i) {
+                  final item = _items[i];
+                  final isActive = home.selectedIndex.value == i;
+
+                  // Verify items (1=Parents, 2=Cafeterias, 3=Children)
+                  // are disabled when no pending requests exist
+                  bool isDisabled = false;
+                  if (dash != null) {
+                    if (i == 1) {
+                      isDisabled =
+                          dash.pendingParentsCount.value == 0;
+                    } else if (i == 2) {
+                      isDisabled =
+                          dash.pendingCafeteriasCount.value == 0;
+                    } else if (i == 3) {
+                      isDisabled =
+                          dash.pendingChildrenCount.value == 0;
+                    }
+                  }
+
+                  return _SidebarItem(
+                    icon: item['icon'] as IconData,
+                    activeIcon: item['activeIcon'] as IconData,
+                    label: item['label'] as String,
+                    isActive: isActive,
+                    isDisabled: isDisabled,
+                    onTap: () => home.selectIndex(i),
+                  );
+                }),
+              );
+            }),
           ),
 
           const Divider(height: 1, color: AppColors.divider),
@@ -97,6 +124,7 @@ class _SidebarItem extends StatefulWidget {
   final IconData activeIcon;
   final String label;
   final bool isActive;
+  final bool isDisabled;
   final VoidCallback onTap;
 
   const _SidebarItem({
@@ -105,6 +133,7 @@ class _SidebarItem extends StatefulWidget {
     required this.label,
     required this.isActive,
     required this.onTap,
+    this.isDisabled = false,
   });
 
   @override
@@ -117,9 +146,23 @@ class _SidebarItemState extends State<_SidebarItem> {
   @override
   Widget build(BuildContext context) {
     final showHighlight = widget.isActive || _hovered;
+    final disabled = widget.isDisabled && !widget.isActive;
+
+    // Hover colour: pink when normal, grey when disabled
+    final hoverBg = disabled
+        ? const Color(0xFFF0F0F0)
+        : AppColors.primaryPink.withValues(alpha: 0.07);
+    final iconColor = widget.isActive
+        ? Colors.white
+        : (_hovered && !disabled)
+            ? AppColors.primaryPink
+            : AppColors.textSecondary;
+    final textColor = iconColor;
 
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
+      cursor: disabled
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
@@ -133,7 +176,7 @@ class _SidebarItemState extends State<_SidebarItem> {
             color: widget.isActive
                 ? null
                 : _hovered
-                    ? AppColors.primaryPink.withValues(alpha: 0.07)
+                    ? hoverBg
                     : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
@@ -142,11 +185,7 @@ class _SidebarItemState extends State<_SidebarItem> {
               Icon(
                 showHighlight ? widget.activeIcon : widget.icon,
                 size: 20,
-                color: widget.isActive
-                    ? Colors.white
-                    : _hovered
-                        ? AppColors.primaryPink
-                        : AppColors.textSecondary,
+                color: iconColor,
               ),
               const SizedBox(width: 12),
               Text(
@@ -154,12 +193,9 @@ class _SidebarItemState extends State<_SidebarItem> {
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 13,
-                  fontWeight: showHighlight ? FontWeight.w600 : FontWeight.w400,
-                  color: widget.isActive
-                      ? Colors.white
-                      : _hovered
-                          ? AppColors.primaryPink
-                          : AppColors.textSecondary,
+                  fontWeight:
+                      showHighlight ? FontWeight.w600 : FontWeight.w400,
+                  color: textColor,
                 ),
               ),
             ],
