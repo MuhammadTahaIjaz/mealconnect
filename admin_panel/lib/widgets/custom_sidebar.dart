@@ -67,7 +67,8 @@ class CustomSidebar extends StatelessWidget {
           const SizedBox(height: 12),
 
           Expanded(
-            child: Obx(() {
+            child: SingleChildScrollView(
+              child: Obx(() {
               // Safely read pending counts from DashboardController
               DashboardController? dash;
               try {
@@ -106,6 +107,7 @@ class CustomSidebar extends StatelessWidget {
                 }),
               );
             }),
+            ),
           ),
 
           const Divider(height: 1, color: AppColors.divider),
