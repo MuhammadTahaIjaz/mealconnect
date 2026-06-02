@@ -327,7 +327,7 @@ class _MealManagementPageState extends State<MealManagementPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '\$${price.toStringAsFixed(0)}',
+                  'Rs. ${price.toStringAsFixed(0)}',
                   style: const TextStyle(
                     fontSize: 11,
                     color: Color(0xFF9B9B9B),

@@ -265,7 +265,7 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            '\$${widget.amount.toStringAsFixed(0)}',
+            'Rs. ${widget.amount.toStringAsFixed(0)}',
             style: const TextStyle(
               fontSize: 48,
               fontWeight: FontWeight.w700,
@@ -456,7 +456,7 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
                       borderRadius: BorderRadius.circular(27)),
                 ),
                 child: Text(
-                  'PAY  \$${widget.amount.toStringAsFixed(0)}',
+                  'PAY  Rs. ${widget.amount.toStringAsFixed(0)}',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,

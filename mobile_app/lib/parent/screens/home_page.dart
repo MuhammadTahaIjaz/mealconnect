@@ -45,7 +45,7 @@ class HomePage extends StatelessWidget {
     return Column(
       children: [
         Text(
-          '\$${balance.toStringAsFixed(2)}',
+          'Rs. ${balance.toStringAsFixed(2)}',
           style: const TextStyle(
             fontSize: 44,
             fontWeight: FontWeight.w700,
@@ -232,7 +232,7 @@ class HomePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  '\$${balance.toStringAsFixed(2)}',
+                  'Rs. ${balance.toStringAsFixed(2)}',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,

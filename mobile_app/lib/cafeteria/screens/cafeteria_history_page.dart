@@ -324,7 +324,7 @@ class _CafeteriaHistoryPageState
                       fontSize: 12, color: Colors.white70),
                 ),
                 Text(
-                  '\$${total.toStringAsFixed(2)}',
+                  'Rs. ${total.toStringAsFixed(2)}',
                   style: const TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.w700,
@@ -454,7 +454,7 @@ class _CafeteriaHistoryPageState
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    '\$${(price * qty).toStringAsFixed(2)}',
+                    'Rs. ${(price * qty).toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -472,7 +472,7 @@ class _CafeteriaHistoryPageState
                 MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Total  \$${total.toStringAsFixed(2)}',
+                'Total  Rs. ${total.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,

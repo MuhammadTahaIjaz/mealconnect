@@ -292,7 +292,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    '\$${(price * qty).toStringAsFixed(2)}',
+                    'Rs. ${(price * qty).toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -309,7 +309,7 @@ class _HistoryPageState extends State<HistoryPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Total  \$${total.toStringAsFixed(2)}',
+                'Total  Rs. ${total.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,

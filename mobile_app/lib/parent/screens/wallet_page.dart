@@ -45,7 +45,7 @@ class _WalletPageState extends State<WalletPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                '\$${amount.toStringAsFixed(0)} added to your wallet!'),
+                'Rs. ${amount.toStringAsFixed(0)} added to your wallet!'),
             backgroundColor: const Color(0xFF43A047),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -163,7 +163,7 @@ class _WalletPageState extends State<WalletPage> {
           ),
           const SizedBox(height: 6),
           Text(
-            '\$${balance.toStringAsFixed(2)}',
+            'Rs. ${balance.toStringAsFixed(2)}',
             style: const TextStyle(
               fontSize: 42,
               fontWeight: FontWeight.w700,
@@ -208,7 +208,7 @@ class _WalletPageState extends State<WalletPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '\$${amount.toStringAsFixed(0)}',
+                'Rs. ${amount.toStringAsFixed(0)}',
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -265,7 +265,7 @@ class _WalletPageState extends State<WalletPage> {
                     style: const TextStyle(
                         fontSize: 15, color: Color(0xFF1A1A1A)),
                     decoration: InputDecoration(
-                      prefixText: '\$ ',
+                      prefixText: 'Rs. ',
                       prefixStyle: const TextStyle(
                           fontSize: 15,
                           color: Color(0xFF1A1A1A),
@@ -299,7 +299,7 @@ class _WalletPageState extends State<WalletPage> {
                     validator: (v) {
                       final val = double.tryParse(v ?? '');
                       if (val == null || val < 1) {
-                        return 'Enter at least \$1';
+                        return 'Enter at least Rs. 1';
                       }
                       return null;
                     },

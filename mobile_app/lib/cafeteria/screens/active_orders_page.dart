@@ -207,7 +207,7 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
-              'Order delivered! \$${total.toStringAsFixed(2)} sent to your account.'),
+              'Order delivered! Rs. ${total.toStringAsFixed(2)} sent to your account.'),
           backgroundColor: const Color(0xFF43A047),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -732,7 +732,7 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                     ],
                   ),
                 ),
-                Text('\$${total.toStringAsFixed(2)}',
+                Text('Rs. ${total.toStringAsFixed(2)}',
                     style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -770,7 +770,7 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                             color: Color(0xFF9B9B9B))),
                     const SizedBox(width: 12),
                     Text(
-                        '\$${(price * qty).toStringAsFixed(2)}',
+                        'Rs. ${(price * qty).toStringAsFixed(2)}',
                         style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
