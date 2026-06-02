@@ -111,24 +111,97 @@ class NotificationsPage extends GetView<NotificationsController> {
   }
 
   Widget _buildNotificationCard(NotificationRecord n) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: n.isRead ? Colors.white : AppColors.primaryPink.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: n.isRead
-              ? AppColors.divider
-              : AppColors.primaryPink.withValues(alpha: 0.2),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+    return MouseRegion(
+      cursor: n.isRead
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: n.isRead ? null : () => controller.markAsRead(n.id),
+        child: _NotificationCardContent(n: n),
       ),
+    );
+  }
+}
+
+class _NotificationCardContent extends StatefulWidget {
+  final NotificationRecord n;
+  const _NotificationCardContent({required this.n});
+
+  @override
+  State<_NotificationCardContent> createState() =>
+      _NotificationCardContentState();
+}
+
+class _NotificationCardContentState
+    extends State<_NotificationCardContent> {
+  bool _hovered = false;
+
+  Color _typeColor(String type) {
+    switch (type) {
+      case 'registration':
+        return AppColors.primaryPink;
+      case 'delivery':
+        return AppColors.success;
+      case 'payment':
+        return AppColors.primaryOrange;
+      default:
+        return AppColors.accent;
+    }
+  }
+
+  IconData _typeIcon(String type) {
+    switch (type) {
+      case 'registration':
+        return Icons.person_add_outlined;
+      case 'delivery':
+        return Icons.delivery_dining_outlined;
+      case 'payment':
+        return Icons.payment_outlined;
+      default:
+        return Icons.notifications_outlined;
+    }
+  }
+
+  String _formatTime(Timestamp ts) {
+    final d = ts.toDate();
+    final now = DateTime.now();
+    final diff = now.difference(d);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final n = widget.n;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: n.isRead
+              ? (_hovered
+                  ? const Color(0xFFFAFAFA)
+                  : Colors.white)
+              : (_hovered
+                  ? AppColors.primaryPink.withValues(alpha: 0.08)
+                  : AppColors.primaryPink.withValues(alpha: 0.04)),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: n.isRead
+                ? AppColors.divider
+                : AppColors.primaryPink.withValues(alpha: 0.2),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -196,41 +269,7 @@ class NotificationsPage extends GetView<NotificationsController> {
           ),
         ],
       ),
+      ),
     );
-  }
-
-  Color _typeColor(String type) {
-    switch (type) {
-      case 'registration':
-        return AppColors.primaryPink;
-      case 'delivery':
-        return AppColors.success;
-      case 'payment':
-        return AppColors.primaryOrange;
-      default:
-        return AppColors.accent;
-    }
-  }
-
-  IconData _typeIcon(String type) {
-    switch (type) {
-      case 'registration':
-        return Icons.person_add_outlined;
-      case 'delivery':
-        return Icons.delivery_dining_outlined;
-      case 'payment':
-        return Icons.payment_outlined;
-      default:
-        return Icons.notifications_outlined;
-    }
-  }
-
-  String _formatTime(Timestamp ts) {
-    final d = ts.toDate();
-    final now = DateTime.now();
-    final diff = now.difference(d);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
   }
 }

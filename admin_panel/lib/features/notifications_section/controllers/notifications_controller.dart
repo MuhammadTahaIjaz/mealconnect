@@ -63,6 +63,29 @@ class NotificationsController extends GetxController {
     }
   }
 
+  Future<void> markAsRead(String id) async {
+    try {
+      await _db
+          .collection('notifications')
+          .doc(id)
+          .update({'isRead': true});
+      notifications.value = notifications
+          .map((n) => n.id == id
+              ? NotificationRecord(
+                  id: n.id,
+                  title: n.title,
+                  message: n.message,
+                  type: n.type,
+                  isRead: true,
+                  timestamp: n.timestamp,
+                )
+              : n)
+          .toList();
+      unreadCount.value =
+          notifications.where((n) => !n.isRead).length;
+    } catch (_) {}
+  }
+
   Future<void> markAllRead() async {
     try {
       final batch = _db.batch();
