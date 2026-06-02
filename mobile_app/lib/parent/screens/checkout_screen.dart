@@ -298,7 +298,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         ),
                       ),
                       Text(
-                        '\$${mealTotal.toStringAsFixed(2)}',
+                        'Rs. ${mealTotal.toStringAsFixed(2)}',
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -331,7 +331,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             ),
                           ),
                           Text(
-                            '× $qty   \$${(price * qty).toStringAsFixed(2)}',
+                            '× $qty   Rs. ${(price * qty).toStringAsFixed(2)}',
                             style: const TextStyle(
                                 fontSize: 12,
                                 color: Color(0xFF9B9B9B)),
@@ -354,7 +354,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1A1A))),
               Text(
-                '\$${_total.toStringAsFixed(2)}',
+                'Rs. ${_total.toStringAsFixed(2)}',
                 style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -392,7 +392,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     style: TextStyle(
                         fontSize: 12, color: Color(0xFF9B9B9B))),
                 Text(
-                  '\$${_walletBalance.toStringAsFixed(2)}',
+                  'Rs. ${_walletBalance.toStringAsFixed(2)}',
                   style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -410,7 +410,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                '\$${_deficit.toStringAsFixed(2)} short',
+                'Rs. ${_deficit.toStringAsFixed(2)} short',
                 style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -447,7 +447,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         color: Color(0xFF8B6900))),
                 const SizedBox(height: 2),
                 Text(
-                  'You need \$${_deficit.toStringAsFixed(2)} more. Top up your wallet to continue.',
+                  'You need Rs. ${_deficit.toStringAsFixed(2)} more. Top up your wallet to continue.',
                   style: const TextStyle(
                       fontSize: 12, color: Color(0xFF8B6900)),
                 ),
@@ -523,7 +523,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       borderRadius: BorderRadius.circular(27)),
                 ),
                 child: Text(
-                  'PAY  \$${_total.toStringAsFixed(2)}',
+                  'PAY  Rs. ${_total.toStringAsFixed(2)}',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,

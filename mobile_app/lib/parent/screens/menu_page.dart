@@ -243,7 +243,7 @@ class _MenuPageState extends State<MenuPage> {
                     fontSize: 12, color: Color(0xFF9B9B9B)),
               ),
               Text(
-                '\$${_cartTotal.toStringAsFixed(2)}',
+                'Rs. ${_cartTotal.toStringAsFixed(2)}',
                 style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -603,7 +603,7 @@ class _MenuPageState extends State<MenuPage> {
                       MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '\$${price.toStringAsFixed(2)}',
+                      'Rs. ${price.toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -662,7 +662,7 @@ class _MenuPageState extends State<MenuPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              '${days.length}d·\$${total.toStringAsFixed(0)}',
+              '${days.length}d·Rs.${total.toStringAsFixed(0)}',
               style: const TextStyle(
                   color: Colors.white,
                   fontSize: 11,
@@ -780,7 +780,7 @@ class _DaySelectionSheetState extends State<_DaySelectionSheet> {
             ),
           ),
           Text(
-            '\$${widget.price.toStringAsFixed(2)} per meal  •  Select delivery days',
+            'Rs. ${widget.price.toStringAsFixed(2)} per meal  •  Select delivery days',
             style: const TextStyle(
                 fontSize: 12, color: Color(0xFF9B9B9B)),
           ),
@@ -910,7 +910,7 @@ class _DaySelectionSheetState extends State<_DaySelectionSheet> {
                       color: Color(0xFF9B9B9B)),
                 ),
                 Text(
-                  '\$${_subtotal.toStringAsFixed(2)}',
+                  'Rs. ${_subtotal.toStringAsFixed(2)}',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
