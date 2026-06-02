@@ -146,14 +146,17 @@ class DashboardPage extends GetView<DashboardController> {
                 child: Icon(icon, color: color, size: 20),
               ),
               const SizedBox(width: 10),
-              Text(
-                label.toUpperCase(),
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
-                  letterSpacing: 0.8,
+              Expanded(
+                child: Text(
+                  label.toUpperCase(),
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 0.8,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -168,13 +171,17 @@ class DashboardPage extends GetView<DashboardController> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '$total',
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '$total',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                     const Text(
@@ -200,15 +207,21 @@ class DashboardPage extends GetView<DashboardController> {
                       crossAxisAlignment:
                           CrossAxisAlignment.center,
                       children: [
-                        Text(
-                          '$pending',
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            color: hasPending
-                                ? AppColors.accent
-                                : AppColors.textSecondary,
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '$pending',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                color: hasPending
+                                    ? AppColors.accent
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
                           ),
                         ),
                         if (hasPending) ...[
