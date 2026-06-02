@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import 'profile_page.dart';
 import 'privacy_policy_page.dart';
 import 'terms_conditions_page.dart';
+import 'spending_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -33,6 +34,15 @@ class SettingsPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                     builder: (_) => const ProfilePage()),
+              ),
+            ),
+            _buildDivider(),
+            _buildItem(
+              label: 'My Spending',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const SpendingPage()),
               ),
             ),
             _buildDivider(),
