@@ -15,6 +15,36 @@ class _CafeteriaHistoryPageState
   static const _pink = Color(0xFFFF3366);
   static const _orange = Color(0xFFFF8C00);
 
+  // null = show all within 30 days; set = filter to that date
+  DateTime? _filterDate;
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _filterDate ?? now,
+      firstDate: now.subtract(const Duration(days: 30)),
+      lastDate: now,
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: _pink,
+            onPrimary: Colors.white,
+            onSurface: Color(0xFF1A1A1A),
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() =>
+          _filterDate = DateTime(picked.year, picked.month, picked.day));
+    }
+  }
+
   Map<String, List<QueryDocumentSnapshot>> _groupByOrderId(
       List<QueryDocumentSnapshot> docs) {
     final grouped = <String, List<QueryDocumentSnapshot>>{};
@@ -63,10 +93,19 @@ class _CafeteriaHistoryPageState
                       (snapshot.data?.docs ?? []).where((doc) {
                     final d =
                         doc.data() as Map<String, dynamic>;
-                    final ts =
-                        d['selectionDate'] as Timestamp?;
-                    return d['isDelivered'] == true &&
-                        ts != null &&
+                    if (d['isDelivered'] != true) return false;
+                    // Date filter
+                    if (_filterDate != null) {
+                      final deliveryTs =
+                          d['deliveryDate'] as Timestamp?;
+                      if (deliveryTs == null) return false;
+                      final dd = deliveryTs.toDate();
+                      return _isSameDay(_filterDate!,
+                          DateTime(dd.year, dd.month, dd.day));
+                    }
+                    // Default: last 30 days
+                    final ts = d['selectionDate'] as Timestamp?;
+                    return ts != null &&
                         ts.toDate().isAfter(cutoff);
                   }).toList()
                         ..sort((a, b) {
@@ -93,11 +132,15 @@ class _CafeteriaHistoryPageState
   }
 
   Widget _buildHeader() {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(20, 24, 20, 16),
+    const mo = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
       child: Column(
         children: [
-          Text(
+          const Text(
             'HISTORY',
             style: TextStyle(
               fontSize: 17,
@@ -106,11 +149,74 @@ class _CafeteriaHistoryPageState
               color: Color(0xFF1A1A1A),
             ),
           ),
-          SizedBox(height: 4),
-          Text(
+          const SizedBox(height: 4),
+          const Text(
             'Last 30 days  •  Delivered orders',
-            style:
-                TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
+            style: TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: _pickDate,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _filterDate != null
+                        ? _pink.withValues(alpha: 0.10)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _filterDate != null
+                          ? _pink
+                          : const Color(0xFFEEEEEE),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.calendar_today_outlined,
+                          size: 14,
+                          color: _filterDate != null
+                              ? _pink
+                              : const Color(0xFF9B9B9B)),
+                      const SizedBox(width: 6),
+                      Text(
+                        _filterDate != null
+                            ? '${mo[_filterDate!.month]} ${_filterDate!.day}, ${_filterDate!.year}'
+                            : 'Filter by date',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _filterDate != null
+                              ? _pink
+                              : const Color(0xFF9B9B9B),
+                          fontWeight: _filterDate != null
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_filterDate != null) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => setState(() => _filterDate = null),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F0F0),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(Icons.close,
+                        size: 14, color: Color(0xFF9B9B9B)),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),

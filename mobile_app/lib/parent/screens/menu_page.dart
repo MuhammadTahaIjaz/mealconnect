@@ -1,6 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// ── Top-level helpers ────────────────────────────────────────────────────────
+
+String _weekdayName(int weekday) {
+  const n = [
+    '', 'Monday', 'Tuesday', 'Wednesday',
+    'Thursday', 'Friday', 'Saturday', 'Sunday'
+  ];
+  return n[weekday];
+}
+
+String _shortMonth(int month) {
+  const m = [
+    '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+  return m[month];
+}
+
+// ── MenuPage ─────────────────────────────────────────────────────────────────
+
 class MenuPage extends StatefulWidget {
   const MenuPage({super.key});
 
@@ -21,19 +41,104 @@ class _MenuPageState extends State<MenuPage> {
   String _searchQuery = '';
   final _searchController = TextEditingController();
 
-  static const _days = [
+  static const _filterDays = [
     'All', 'Monday', 'Tuesday', 'Wednesday',
     'Thursday', 'Friday', 'Saturday', 'Sunday',
   ];
-  String _selectedDay = 'All';
+  String _selectedFilterDay = 'All';
 
-  // key = mealId, value = meal data map + '_qty' key
+  // key = mealId, value = meal data + 'days': List<Map>
   final Map<String, Map<String, dynamic>> _cart = {};
 
-  double get _cartTotal => _cart.values.fold(
-      0, (s, m) => s + (m['price'] as num).toDouble() * (m['_qty'] as int));
-  int get _cartCount =>
-      _cart.values.fold(0, (s, m) => s + (m['_qty'] as int));
+  double get _cartTotal => _cart.values.fold(0.0, (s, item) {
+        final days = (item['days'] as List<dynamic>?) ?? [];
+        return s + days.fold<double>(0, (ds, d) {
+          final day = d as Map<String, dynamic>;
+          return ds +
+              (item['price'] as num).toDouble() * (day['qty'] as int);
+        });
+      });
+
+  int get _cartCount => _cart.values.fold(0, (s, item) {
+        final days = (item['days'] as List<dynamic>?) ?? [];
+        return s +
+            days.fold<int>(0, (ds, d) => ds + ((d as Map)['qty'] as int));
+      });
+
+  // Returns tomorrow → end of current week (Sunday).
+  // If today is Sunday, returns next Mon–Sun (7 days).
+  List<DateTime> _getRemainingWeekDays() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    int daysUntilSunday = DateTime.sunday - today.weekday;
+    if (daysUntilSunday <= 0) daysUntilSunday += 7;
+    final weekEnd = today.add(Duration(days: daysUntilSunday));
+    final start = today.add(const Duration(days: 1));
+    final days = <DateTime>[];
+    for (var d = start; !d.isAfter(weekEnd);
+        d = d.add(const Duration(days: 1))) {
+      days.add(d);
+    }
+    return days;
+  }
+
+  List<DateTime> _getAvailableDays(
+      List<DateTime> days, dynamic availability) {
+    List<String> avail = [];
+    if (availability is List) {
+      avail = List<String>.from(availability);
+    } else if (availability is String && availability.isNotEmpty) {
+      avail = [availability];
+    }
+    if (avail.isEmpty) return days;
+    return days.where((d) => avail.contains(_weekdayName(d.weekday))).toList();
+  }
+
+  Future<void> _openDaySelection(
+      String mealId, Map<String, dynamic> data) async {
+    final remaining = _getRemainingWeekDays();
+    final available = _getAvailableDays(remaining, data['availability']);
+
+    if (available.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            '${(data['mealName'] as String?) ?? 'This meal'} is not available in the remaining days of this week.'),
+        backgroundColor: const Color(0xFFE53935),
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+      return;
+    }
+
+    final current = List<Map<String, dynamic>>.from(
+      ((_cart[mealId]?['days'] as List<dynamic>?) ?? [])
+          .map((d) => Map<String, dynamic>.from(d as Map)),
+    );
+
+    if (!mounted) return;
+    final result = await showModalBottomSheet<List<Map<String, dynamic>>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DaySelectionSheet(
+        mealName: (data['mealName'] as String?) ?? 'Meal',
+        price: (data['price'] as num?)?.toDouble() ?? 0.0,
+        availableDays: available,
+        initialSelection: current,
+      ),
+    );
+
+    if (result == null || !mounted) return;
+    setState(() {
+      if (result.isEmpty) {
+        _cart.remove(mealId);
+      } else {
+        _cart[mealId] = {...data, 'days': result};
+      }
+    });
+  }
 
   @override
   void didChangeDependencies() {
@@ -54,36 +159,15 @@ class _MenuPageState extends State<MenuPage> {
     super.dispose();
   }
 
-  void _addToCart(String mealId, Map<String, dynamic> data) {
-    setState(() {
-      if (_cart.containsKey(mealId)) {
-        _cart[mealId]!['_qty'] = (_cart[mealId]!['_qty'] as int) + 1;
-      } else {
-        _cart[mealId] = {...data, '_qty': 1};
-      }
-    });
-  }
-
-  void _removeFromCart(String mealId) {
-    setState(() {
-      final qty = (_cart[mealId]?['_qty'] as int?) ?? 0;
-      if (qty <= 1) {
-        _cart.remove(mealId);
-      } else {
-        _cart[mealId]!['_qty'] = qty - 1;
-      }
-    });
-  }
-
   void _goToCheckout() {
     final cartList = _cart.entries
         .map((e) => {
               'mealId': e.key,
               'mealName': (e.value['mealName'] as String?) ?? '',
               'price': (e.value['price'] as num?)?.toDouble() ?? 0.0,
-              'qty': e.value['_qty'] as int,
               'cafeteriaId': (e.value['cafeteriaId'] as String?) ?? '',
               'imageUrl': (e.value['imageUrl'] as String?) ?? '',
+              'days': e.value['days'],
             })
         .toList();
 
@@ -155,8 +239,8 @@ class _MenuPageState extends State<MenuPage> {
             children: [
               Text(
                 '$_cartCount item${_cartCount == 1 ? '' : 's'}',
-                style:
-                    const TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
+                style: const TextStyle(
+                    fontSize: 12, color: Color(0xFF9B9B9B)),
               ),
               Text(
                 '\$${_cartTotal.toStringAsFixed(2)}',
@@ -236,9 +320,7 @@ class _MenuPageState extends State<MenuPage> {
                 Text(
                   _childName,
                   style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF9B9B9B),
-                  ),
+                      fontSize: 13, color: Color(0xFF9B9B9B)),
                 ),
               ],
             ),
@@ -267,8 +349,8 @@ class _MenuPageState extends State<MenuPage> {
           controller: _searchController,
           onChanged: (v) =>
               setState(() => _searchQuery = v.toLowerCase()),
-          style:
-              const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
+          style: const TextStyle(
+              fontSize: 14, color: Color(0xFF1A1A1A)),
           decoration: InputDecoration(
             hintText: 'Search meals...',
             hintStyle: const TextStyle(
@@ -305,26 +387,29 @@ class _MenuPageState extends State<MenuPage> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
-        itemCount: _days.length,
+        itemCount: _filterDays.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
-          final day = _days[i];
-          final selected = _selectedDay == day;
+          final day = _filterDays[i];
+          final selected = _selectedFilterDay == day;
           return GestureDetector(
-            onTap: () => setState(() => _selectedDay = day),
+            onTap: () =>
+                setState(() => _selectedFilterDay = day),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 6),
               decoration: BoxDecoration(
                 gradient: selected
-                    ? const LinearGradient(colors: [_pink, _orange])
+                    ? const LinearGradient(
+                        colors: [_pink, _orange])
                     : null,
                 color: selected ? null : Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
+                    color:
+                        Colors.black.withValues(alpha: 0.06),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -334,8 +419,9 @@ class _MenuPageState extends State<MenuPage> {
                 day,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight:
-                      selected ? FontWeight.w600 : FontWeight.w400,
+                  fontWeight: selected
+                      ? FontWeight.w600
+                      : FontWeight.w400,
                   color: selected
                       ? Colors.white
                       : const Color(0xFF9B9B9B),
@@ -353,7 +439,8 @@ class _MenuPageState extends State<MenuPage> {
       return const Center(
         child: Text(
           'No school associated with this child.',
-          style: TextStyle(color: Color(0xFF9B9B9B), fontSize: 14),
+          style: TextStyle(
+              color: Color(0xFF9B9B9B), fontSize: 14),
         ),
       );
     }
@@ -365,30 +452,29 @@ class _MenuPageState extends State<MenuPage> {
           .where('isAvailable', isEqualTo: true)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(_pink),
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(_pink),
             ),
           );
         }
 
         final allDocs = snapshot.data?.docs ?? [];
-
         final filtered = allDocs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          final name =
-              ((data['mealName'] as String?) ?? '').toLowerCase();
+          final name = ((data['mealName'] as String?) ?? '')
+              .toLowerCase();
           if (_searchQuery.isNotEmpty &&
-              !name.contains(_searchQuery)) {
-            return false;
-          }
-          if (_selectedDay != 'All') {
+              !name.contains(_searchQuery)) return false;
+          if (_selectedFilterDay != 'All') {
             final av = data['availability'];
             if (av is List) {
-              if (!av.contains(_selectedDay)) return false;
+              if (!av.contains(_selectedFilterDay)) return false;
             } else if (av is String) {
-              if (av != _selectedDay) return false;
+              if (av != _selectedFilterDay) return false;
             } else {
               return false;
             }
@@ -407,7 +493,8 @@ class _MenuPageState extends State<MenuPage> {
                 const Text(
                   'No meals available.',
                   style: TextStyle(
-                      fontSize: 15, color: Color(0xFF9B9B9B)),
+                      fontSize: 15,
+                      color: Color(0xFF9B9B9B)),
                 ),
               ],
             ),
@@ -415,7 +502,8 @@ class _MenuPageState extends State<MenuPage> {
         }
 
         return GridView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+          padding:
+              const EdgeInsets.fromLTRB(20, 4, 20, 20),
           gridDelegate:
               const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
@@ -426,7 +514,8 @@ class _MenuPageState extends State<MenuPage> {
           itemCount: filtered.length,
           itemBuilder: (context, i) {
             final doc = filtered[i];
-            final data = doc.data() as Map<String, dynamic>;
+            final data =
+                doc.data() as Map<String, dynamic>;
             return _buildMealCard(doc.id, data);
           },
         );
@@ -434,9 +523,11 @@ class _MenuPageState extends State<MenuPage> {
     );
   }
 
-  Widget _buildMealCard(String mealId, Map<String, dynamic> data) {
+  Widget _buildMealCard(
+      String mealId, Map<String, dynamic> data) {
     final name = (data['mealName'] as String?) ?? '';
-    final price = (data['price'] as num?)?.toDouble() ?? 0.0;
+    final price =
+        (data['price'] as num?)?.toDouble() ?? 0.0;
     final imageUrl = (data['imageUrl'] as String?) ?? '';
     final av = data['availability'];
     String daysLabel = '';
@@ -466,20 +557,22 @@ class _MenuPageState extends State<MenuPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(16)),
+            borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16)),
             child: imageUrl.isNotEmpty
                 ? Image.network(
                     imageUrl,
                     height: 100,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _imageFallback(),
+                    errorBuilder: (_, __, ___) =>
+                        _imageFallback(),
                   )
                 : _imageFallback(),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            padding:
+                const EdgeInsets.fromLTRB(10, 8, 10, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -498,14 +591,16 @@ class _MenuPageState extends State<MenuPage> {
                   Text(
                     daysLabel,
                     style: const TextStyle(
-                        fontSize: 11, color: Color(0xFF9B9B9B)),
+                        fontSize: 11,
+                        color: Color(0xFF9B9B9B)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
                 const SizedBox(height: 6),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment:
+                      MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       '\$${price.toStringAsFixed(2)}',
@@ -515,7 +610,7 @@ class _MenuPageState extends State<MenuPage> {
                         color: _pink,
                       ),
                     ),
-                    _buildQtyControl(mealId, data),
+                    _buildCartControl(mealId, data),
                   ],
                 ),
               ],
@@ -526,60 +621,58 @@ class _MenuPageState extends State<MenuPage> {
     );
   }
 
-  Widget _buildQtyControl(String mealId, Map<String, dynamic> data) {
-    final qty = (_cart[mealId]?['_qty'] as int?) ?? 0;
+  Widget _buildCartControl(
+      String mealId, Map<String, dynamic> data) {
+    final days =
+        (_cart[mealId]?['days'] as List<dynamic>?) ?? [];
 
-    if (qty == 0) {
+    if (days.isEmpty) {
       return GestureDetector(
-        onTap: () => _addToCart(mealId, data),
+        onTap: () => _openDaySelection(mealId, data),
         child: Container(
           width: 28,
           height: 28,
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            gradient: LinearGradient(colors: [_pink, _orange]),
+            gradient:
+                LinearGradient(colors: [_pink, _orange]),
           ),
-          child: const Icon(Icons.add, color: Colors.white, size: 16),
+          child: const Icon(Icons.add,
+              color: Colors.white, size: 16),
         ),
       );
     }
 
-    return Container(
-      height: 28,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [_pink, _orange]),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            onTap: () => _removeFromCart(mealId),
-            child: const SizedBox(
-              width: 28,
-              height: 28,
-              child: Icon(Icons.remove, color: Colors.white, size: 14),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Text(
-              '$qty',
+    final totalQty = days.fold<int>(
+        0, (s, d) => s + ((d as Map)['qty'] as int));
+    final total =
+        (data['price'] as num).toDouble() * totalQty;
+
+    return GestureDetector(
+      onTap: () => _openDaySelection(mealId, data),
+      child: Container(
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          gradient:
+              const LinearGradient(colors: [_pink, _orange]),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${days.length}d·\$${total.toStringAsFixed(0)}',
               style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600),
             ),
-          ),
-          GestureDetector(
-            onTap: () => _addToCart(mealId, data),
-            child: const SizedBox(
-              width: 28,
-              height: 28,
-              child: Icon(Icons.add, color: Colors.white, size: 14),
-            ),
-          ),
-        ],
+            const SizedBox(width: 3),
+            const Icon(Icons.edit,
+                color: Colors.white, size: 11),
+          ],
+        ),
       ),
     );
   }
@@ -591,6 +684,303 @@ class _MenuPageState extends State<MenuPage> {
       color: const Color(0xFFF7F8FC),
       child: const Icon(Icons.fastfood_outlined,
           size: 36, color: Color(0xFFCCCCCC)),
+    );
+  }
+}
+
+// ── Day Selection Bottom Sheet ────────────────────────────────────────────────
+
+class _DaySelectionSheet extends StatefulWidget {
+  final String mealName;
+  final double price;
+  final List<DateTime> availableDays;
+  final List<Map<String, dynamic>> initialSelection;
+
+  const _DaySelectionSheet({
+    required this.mealName,
+    required this.price,
+    required this.availableDays,
+    required this.initialSelection,
+  });
+
+  @override
+  State<_DaySelectionSheet> createState() =>
+      _DaySelectionSheetState();
+}
+
+class _DaySelectionSheetState extends State<_DaySelectionSheet> {
+  static const _pink = Color(0xFFFF3366);
+  static const _orange = Color(0xFFFF8C00);
+
+  // key = 'yyyy-M-d', value = qty
+  final Map<String, int> _sel = {};
+
+  @override
+  void initState() {
+    super.initState();
+    for (final item in widget.initialSelection) {
+      final dt = item['date'] as DateTime;
+      _sel[_key(dt)] = item['qty'] as int;
+    }
+  }
+
+  String _key(DateTime d) => '${d.year}-${d.month}-${d.day}';
+
+  double get _subtotal =>
+      _sel.values.fold(0.0, (s, q) => s + widget.price * q);
+
+  int get _totalItems =>
+      _sel.values.fold(0, (s, q) => s + q);
+
+  List<Map<String, dynamic>> _buildResult() {
+    final result = <Map<String, dynamic>>[];
+    for (final day in widget.availableDays) {
+      final k = _key(day);
+      if (_sel.containsKey(k)) {
+        result.add({
+          'date': day,
+          'dayName': _weekdayName(day.weekday),
+          'qty': _sel[k]!,
+        });
+      }
+    }
+    return result;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final insets = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 16, 20, insets + 24),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEEEEE),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Title
+          Text(
+            widget.mealName,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1A1A1A),
+            ),
+          ),
+          Text(
+            '\$${widget.price.toStringAsFixed(2)} per meal  •  Select delivery days',
+            style: const TextStyle(
+                fontSize: 12, color: Color(0xFF9B9B9B)),
+          ),
+          const SizedBox(height: 16),
+          // Day rows
+          ...widget.availableDays.map((day) {
+            final k = _key(day);
+            final selected = _sel.containsKey(k);
+            final qty = _sel[k] ?? 0;
+            final label =
+                '${_weekdayName(day.weekday)},  ${_shortMonth(day.month)} ${day.day}';
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: selected
+                    ? const Color(0xFFFFF0F3)
+                    : const Color(0xFFF7F8FC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: selected
+                      ? _pink
+                      : Colors.transparent,
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      if (selected) {
+                        _sel.remove(k);
+                      } else {
+                        _sel[k] = 1;
+                      }
+                    }),
+                    child: AnimatedContainer(
+                      duration:
+                          const Duration(milliseconds: 150),
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? _pink
+                            : Colors.white,
+                        borderRadius:
+                            BorderRadius.circular(6),
+                        border: Border.all(
+                          color: selected
+                              ? _pink
+                              : const Color(0xFFDDDDDD),
+                        ),
+                      ),
+                      child: selected
+                          ? const Icon(Icons.check,
+                              size: 14,
+                              color: Colors.white)
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: selected
+                            ? const Color(0xFF1A1A1A)
+                            : const Color(0xFF9B9B9B),
+                        fontWeight: selected
+                            ? FontWeight.w500
+                            : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                  if (selected) ...[
+                    _qtyBtn(
+                      icon: Icons.remove,
+                      onTap: () => setState(() {
+                        if (qty <= 1) {
+                          _sel.remove(k);
+                        } else {
+                          _sel[k] = qty - 1;
+                        }
+                      }),
+                    ),
+                    SizedBox(
+                      width: 28,
+                      child: Text(
+                        '$qty',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                    ),
+                    _qtyBtn(
+                      icon: Icons.add,
+                      onTap: () =>
+                          setState(() => _sel[k] = qty + 1),
+                    ),
+                  ] else
+                    const Text(
+                      'Tap to select',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF9B9B9B)),
+                    ),
+                ],
+              ),
+            );
+          }),
+          if (_sel.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment:
+                  MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '$_totalItems item${_totalItems == 1 ? '' : 's'}  ·  ${_sel.length} day${_sel.length == 1 ? '' : 's'}',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF9B9B9B)),
+                ),
+                Text(
+                  '\$${_subtotal.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ] else
+            const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: _sel.isEmpty
+                      ? [
+                          const Color(0xFFCCCCCC),
+                          const Color(0xFFCCCCCC)
+                        ]
+                      : const [_pink, _orange],
+                ),
+                borderRadius: BorderRadius.circular(25),
+              ),
+              child: ElevatedButton(
+                onPressed: _sel.isEmpty
+                    ? null
+                    : () =>
+                        Navigator.pop(context, _buildResult()),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(25)),
+                ),
+                child: Text(
+                  _sel.isEmpty
+                      ? 'Select at least one day'
+                      : 'ADD TO CART',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _qtyBtn(
+      {required IconData icon, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: _pink.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 14, color: _pink),
+      ),
     );
   }
 }
