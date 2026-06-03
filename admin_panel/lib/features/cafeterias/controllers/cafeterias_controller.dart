@@ -28,7 +28,8 @@ class CafeteriasController extends GetxController {
   final _db = FirebaseFirestore.instance;
 
   final cafeterias = <CafeteriaRecord>[].obs;
-  final isLoading = true.obs;
+  final isLoading     = true.obs;
+  final processingIds = <String>[].obs;
 
   @override
   void onInit() {
@@ -81,6 +82,7 @@ class CafeteriasController extends GetxController {
   }
 
   Future<void> approveCafeteria(String cafeteriaId) async {
+    processingIds.add(cafeteriaId);
     try {
       final cafeteria =
           cafeterias.firstWhere((c) => c.cafeteriaId == cafeteriaId);
@@ -111,10 +113,13 @@ class CafeteriasController extends GetxController {
           snackPosition: SnackPosition.BOTTOM);
     } catch (_) {
       Get.snackbar('Error', 'Failed to approve cafeteria.');
+    } finally {
+      processingIds.remove(cafeteriaId);
     }
   }
 
   Future<void> rejectCafeteria(String cafeteriaId) async {
+    processingIds.add(cafeteriaId);
     try {
       final cafeteria =
           cafeterias.firstWhere((c) => c.cafeteriaId == cafeteriaId);
@@ -144,6 +149,8 @@ class CafeteriasController extends GetxController {
           snackPosition: SnackPosition.BOTTOM);
     } catch (_) {
       Get.snackbar('Error', 'Failed to reject cafeteria.');
+    } finally {
+      processingIds.remove(cafeteriaId);
     }
   }
 }

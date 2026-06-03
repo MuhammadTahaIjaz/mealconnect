@@ -159,22 +159,43 @@ class VerifyChildrenPage extends GetView<ChildrenController> {
             ),
           ),
 
-          // Status badge
           _buildStatusBadge('Pending'),
           const SizedBox(width: 16),
-
-          // Action buttons
-          _buildActionButton(
-            label: 'Approve',
-            color: AppColors.success,
-            onTap: () => controller.updateStatus(child.childId, 'approved'),
-          ),
-          const SizedBox(width: 8),
-          _buildActionButton(
-            label: 'Reject',
-            color: AppColors.error,
-            onTap: () => controller.updateStatus(child.childId, 'rejected'),
-          ),
+          Obx(() {
+            if (controller.processingIds.contains(child.childId)) {
+              return const SizedBox(
+                width: 80,
+                child: Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: AppColors.primaryPink,
+                    ),
+                  ),
+                ),
+              );
+            }
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildActionButton(
+                  label: 'Approve',
+                  color: AppColors.success,
+                  onTap: () =>
+                      controller.updateStatus(child.childId, 'approved'),
+                ),
+                const SizedBox(width: 8),
+                _buildActionButton(
+                  label: 'Reject',
+                  color: AppColors.error,
+                  onTap: () =>
+                      controller.updateStatus(child.childId, 'rejected'),
+                ),
+              ],
+            );
+          }),
         ],
       ),
     );

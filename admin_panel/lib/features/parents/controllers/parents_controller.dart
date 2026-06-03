@@ -26,7 +26,8 @@ class ParentsController extends GetxController {
   final _db = FirebaseFirestore.instance;
 
   final parents = <ParentRecord>[].obs;
-  final isLoading = true.obs;
+  final isLoading      = true.obs;
+  final processingIds  = <String>[].obs;
 
   @override
   void onInit() {
@@ -78,6 +79,7 @@ class ParentsController extends GetxController {
   }
 
   Future<void> updateStatus(String parentId, String status) async {
+    processingIds.add(parentId);
     try {
       final parent = parents.firstWhere((p) => p.parentId == parentId);
 
@@ -116,6 +118,8 @@ class ParentsController extends GetxController {
       );
     } catch (_) {
       Get.snackbar('Error', 'Failed to update status.');
+    } finally {
+      processingIds.remove(parentId);
     }
   }
 }
