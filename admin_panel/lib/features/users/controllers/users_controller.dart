@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import '../../auth/controllers/auth_controller.dart';
 
 class UserRecord {
   final String userId;
@@ -8,6 +9,8 @@ class UserRecord {
   final String email;
   final String role;
   final Timestamp? timestamp;
+  final String? parentName; // children only
+  final String? parentId;   // children only — used to cascade on parent delete
 
   UserRecord({
     required this.userId,
@@ -15,6 +18,8 @@ class UserRecord {
     required this.email,
     required this.role,
     this.timestamp,
+    this.parentName,
+    this.parentId,
   });
 }
 
@@ -28,7 +33,7 @@ class UsersController extends GetxController {
   final searchQuery   = ''.obs;
   final deletingIds   = <String>[].obs;
 
-  final roles = ['All', 'parent', 'cafeteria', 'admin'];
+  final roles = ['All', 'parent', 'cafeteria', 'child', 'admin'];
 
   @override
   void onInit() {
@@ -42,19 +47,49 @@ class UsersController extends GetxController {
     isLoading.value = true;
     try {
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
-      final snapshot = await _db.collection('users').get();
-      users.value = snapshot.docs
+      final schoolId   = Get.find<AuthController>().schoolId.value;
+
+      // ── Fetch users (parents, cafeterias, admins) ──────────────────────
+      final usersSnap = await _db.collection('users').get();
+      final userRecords = usersSnap.docs
           .where((doc) => doc.id != currentUid)
           .map((doc) {
-        final data = doc.data();
-        return UserRecord(
-          userId:    doc.id,
-          name:      data['name']  ?? '',
-          email:     data['email'] ?? '',
-          role:      data['role']  ?? '',
-          timestamp: data['timestamp'],
-        );
-      }).toList();
+            final d = doc.data();
+            return UserRecord(
+              userId:    doc.id,
+              name:      d['name']  ?? '',
+              email:     d['email'] ?? '',
+              role:      d['role']  ?? '',
+              timestamp: d['timestamp'],
+            );
+          }).toList();
+
+      // Build a parentId → name lookup for children
+      final parentNameMap = {for (final u in userRecords) u.userId: u.name};
+
+      // ── Fetch children ──────────────────────────────────────────────────
+      List<UserRecord> childRecords = [];
+      if (schoolId.isNotEmpty) {
+        final childrenSnap = await _db
+            .collection('children')
+            .where('schoolId', isEqualTo: schoolId)
+            .get();
+        childRecords = childrenSnap.docs.map((doc) {
+          final d = doc.data();
+          final pid = d['parentId'] as String? ?? '';
+          return UserRecord(
+            userId:     doc.id,
+            name:       d['name'] ?? '',
+            email:      '',
+            role:       'child',
+            timestamp:  d['createdAt'],
+            parentName: parentNameMap[pid] ?? '',
+            parentId:   pid,
+          );
+        }).toList();
+      }
+
+      users.value = [...userRecords, ...childRecords];
       _applyFilter();
     } catch (_) {
     } finally {
@@ -69,11 +104,10 @@ class UsersController extends GetxController {
     }
     if (searchQuery.value.isNotEmpty) {
       final q = searchQuery.value.toLowerCase();
-      list = list
-          .where((u) =>
-              u.name.toLowerCase().contains(q) ||
-              u.email.toLowerCase().contains(q))
-          .toList();
+      list = list.where((u) =>
+          u.name.toLowerCase().contains(q) ||
+          u.email.toLowerCase().contains(q) ||
+          (u.parentName?.toLowerCase().contains(q) ?? false)).toList();
     }
     filteredUsers.value = list;
   }
@@ -84,32 +118,35 @@ class UsersController extends GetxController {
     try {
       final batch = _db.batch();
 
-      // Always remove from users collection
-      batch.delete(_db.collection('users').doc(user.userId));
+      if (user.role == 'child') {
+        // Children exist only in the children collection
+        batch.delete(_db.collection('children').doc(user.userId));
+      } else {
+        // All other roles have a users doc
+        batch.delete(_db.collection('users').doc(user.userId));
 
-      if (user.role == 'parent') {
-        // Remove from parents collection
-        batch.delete(_db.collection('parents').doc(user.userId));
-        // Cascade: remove all children of this parent
-        final childrenSnap = await _db
-            .collection('children')
-            .where('parentId', isEqualTo: user.userId)
-            .get();
-        for (final doc in childrenSnap.docs) {
-          batch.delete(doc.reference);
+        if (user.role == 'parent') {
+          batch.delete(_db.collection('parents').doc(user.userId));
+          // Cascade: delete all children of this parent
+          final childrenSnap = await _db
+              .collection('children')
+              .where('parentId', isEqualTo: user.userId)
+              .get();
+          for (final doc in childrenSnap.docs) {
+            batch.delete(doc.reference);
+          }
+          // Remove those children from local list too
+          users.removeWhere(
+              (u) => u.role == 'child' && u.parentId == user.userId);
+        } else if (user.role == 'cafeteria') {
+          batch.delete(_db.collection('cafeterias').doc(user.userId));
         }
-      } else if (user.role == 'cafeteria') {
-        // Remove from cafeterias collection
-        batch.delete(_db.collection('cafeterias').doc(user.userId));
       }
 
       await batch.commit();
-
-      // Remove from local lists immediately
       users.removeWhere((u) => u.userId == user.userId);
       _applyFilter();
     } catch (_) {
-      // Silently keep the user in the list if deletion fails
     } finally {
       deletingIds.remove(user.userId);
     }

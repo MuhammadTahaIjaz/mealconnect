@@ -213,8 +213,8 @@ class UserManagementPage extends GetView<UsersController> {
           const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       child: Row(
         children: [
-          Expanded(flex: _flexName,  child: const Text('NAME',   style: style)),
-          Expanded(flex: _flexEmail, child: const Text('EMAIL',  style: style)),
+          Expanded(flex: _flexName,  child: const Text('NAME',          style: style)),
+          Expanded(flex: _flexEmail, child: const Text('EMAIL / PARENT', style: style)),
           Expanded(flex: _flexRole,  child: const Text('ROLE',   style: style)),
           SizedBox(width: _actionW,  child: const Text('ACTION', style: style,
               textAlign: TextAlign.center)),
@@ -269,18 +269,40 @@ class UserManagementPage extends GetView<UsersController> {
                 ],
               ),
             ),
-            // Email
+            // Email (or parent name for children)
             Expanded(
               flex: _flexEmail,
-              child: Text(
-                user.email,
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: user.role == 'child'
+                  ? Row(
+                      children: [
+                        const Icon(Icons.person_outline,
+                            size: 13,
+                            color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            user.parentName?.isNotEmpty == true
+                                ? user.parentName!
+                                : '—',
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Text(
+                      user.email,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
             ),
             // Role badge
             Expanded(
@@ -315,7 +337,17 @@ class UserManagementPage extends GetView<UsersController> {
   // ── Delete confirmation ───────────────────────────────────────────────────
 
   void _confirmDelete(BuildContext context, UserRecord user) {
-    final isParent = user.role == 'parent';
+    String message;
+    if (user.role == 'parent') {
+      message =
+          'This will permanently delete ${user.name}\'s account and all children registered under it. This cannot be undone.';
+    } else if (user.role == 'child') {
+      message =
+          'This will permanently delete the child account for ${user.name}. This cannot be undone.';
+    } else {
+      message =
+          'This will permanently delete ${user.name}\'s account. This cannot be undone.';
+    }
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -331,9 +363,7 @@ class UserManagementPage extends GetView<UsersController> {
           ),
         ),
         content: Text(
-          isParent
-              ? 'This will permanently delete ${user.name}\'s account and all children registered under it. This cannot be undone.'
-              : 'This will permanently delete ${user.name}\'s account. This cannot be undone.',
+          message,
           style: const TextStyle(
             fontFamily: 'Poppins',
             fontSize: 13,
@@ -382,6 +412,9 @@ class UserManagementPage extends GetView<UsersController> {
         break;
       case 'cafeteria':
         color = AppColors.primaryOrange;
+        break;
+      case 'child':
+        color = const Color(0xFF26A69A);
         break;
       default:
         color = AppColors.textSecondary;
