@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import '../../auth/controllers/auth_controller.dart';
 
 class DailyDelivery {
   final DateTime date;
@@ -23,52 +24,96 @@ class ReportsController extends GetxController {
   Future<void> fetchDeliveryReport() async {
     isLoading.value = true;
     try {
+      final schoolId = Get.find<AuthController>().schoolId.value;
+      if (schoolId.isEmpty) { return; }
+
       final from = DateTime.now().subtract(const Duration(days: 29));
       final fromDate = DateTime(from.year, from.month, from.day);
 
-      final snapshot = await _db
-          .collection('mealSelections')
-          .where('isDelivered', isEqualTo: true)
-          .where('deliveryDate',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(fromDate))
+      // ── Get this school's cafeteria IDs ────────────────────────────────
+      final cafSnap = await _db
+          .collection('cafeterias')
+          .where('schoolId', isEqualTo: schoolId)
           .get();
+      final cafIds = cafSnap.docs.map((d) => d.id).toList();
 
-      // Group by day
-      final Map<String, int> countByDay = {};
-      for (int i = 0; i < 30; i++) {
+      if (cafIds.isEmpty) {
+        _setEmpty(fromDate);
+        return;
+      }
+
+      // ── Fetch delivered mealSelections in batches of 30 ────────────────
+      final allDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+      const batchSize = 30;
+      for (var i = 0; i < cafIds.length; i += batchSize) {
+        final chunk =
+            cafIds.sublist(i, (i + batchSize).clamp(0, cafIds.length));
+        final snap = await _db
+            .collection('mealSelections')
+            .where('cafeteriaId', whereIn: chunk)
+            .where('isDelivered', isEqualTo: true)
+            .get();
+        allDocs.addAll(snap.docs);
+      }
+
+      // ── Initialise a slot for every day in the 30-day window ──────────
+      // key = 'yyyy-MM-dd', value = Set of unique orderIds for that day
+      final Map<String, Set<String>> ordersByDay = {};
+      for (var i = 0; i < 30; i++) {
         final day = fromDate.add(Duration(days: i));
-        final key =
-            '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-        countByDay[key] = 0;
+        ordersByDay[_key(day)] = {};
       }
 
-      for (final doc in snapshot.docs) {
-        final ts = doc.data()['deliveryDate'];
-        if (ts is Timestamp) {
-          final d = ts.toDate();
-          final key =
-              '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-          if (countByDay.containsKey(key)) {
-            countByDay[key] = (countByDay[key] ?? 0) + 1;
-          }
-        }
+      final cutoff = fromDate;
+      final allOrderIds = <String>{};
+
+      for (final doc in allDocs) {
+        final ts = doc.data()['deliveryDate'] as Timestamp?;
+        if (ts == null) continue;
+        final d = ts.toDate();
+        if (d.isBefore(cutoff)) continue;
+
+        final orderId =
+            (doc.data()['orderId'] as String?)?.isNotEmpty == true
+                ? doc.data()['orderId'] as String
+                : doc.id;
+
+        final k = _key(d);
+        ordersByDay[k]?.add(orderId);
+        allOrderIds.add(orderId);
       }
 
-      final entries = countByDay.entries.toList()
+      // ── Build sorted daily list ────────────────────────────────────────
+      final entries = ordersByDay.entries.toList()
         ..sort((a, b) => a.key.compareTo(b.key));
 
       dailyDeliveries.value = entries.map((e) {
         final parts = e.key.split('-');
         return DailyDelivery(
-          DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2])),
-          e.value,
+          DateTime(int.parse(parts[0]), int.parse(parts[1]),
+              int.parse(parts[2])),
+          e.value.length, // unique orders for that day
         );
       }).toList();
 
-      totalDeliveries.value = snapshot.docs.length;
+      totalDeliveries.value = allOrderIds.length; // unique orders total
     } catch (_) {
     } finally {
       isLoading.value = false;
     }
   }
+
+  void _setEmpty(DateTime fromDate) {
+    final entries = <DailyDelivery>[];
+    for (var i = 0; i < 30; i++) {
+      entries.add(DailyDelivery(fromDate.add(Duration(days: i)), 0));
+    }
+    dailyDeliveries.value = entries;
+    totalDeliveries.value = 0;
+    isLoading.value = false;
+  }
+
+  String _key(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
 }
