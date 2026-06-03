@@ -148,17 +148,42 @@ class VerifyCafeteriasPage extends GetView<CafeteriasController> {
           ),
           _buildStatusBadge('Unverified'),
           const SizedBox(width: 16),
-          _buildActionButton(
-            label: 'Approve',
-            color: AppColors.success,
-            onTap: () => controller.approveCafeteria(cafeteria.cafeteriaId),
-          ),
-          const SizedBox(width: 8),
-          _buildActionButton(
-            label: 'Reject',
-            color: AppColors.error,
-            onTap: () => controller.rejectCafeteria(cafeteria.cafeteriaId),
-          ),
+          Obx(() {
+            if (controller.processingIds
+                .contains(cafeteria.cafeteriaId)) {
+              return const SizedBox(
+                width: 80,
+                child: Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: AppColors.primaryPink,
+                    ),
+                  ),
+                ),
+              );
+            }
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildActionButton(
+                  label: 'Approve',
+                  color: AppColors.success,
+                  onTap: () =>
+                      controller.approveCafeteria(cafeteria.cafeteriaId),
+                ),
+                const SizedBox(width: 8),
+                _buildActionButton(
+                  label: 'Reject',
+                  color: AppColors.error,
+                  onTap: () =>
+                      controller.rejectCafeteria(cafeteria.cafeteriaId),
+                ),
+              ],
+            );
+          }),
         ],
       ),
     );
