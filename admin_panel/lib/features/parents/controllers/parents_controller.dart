@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import '../../auth/controllers/auth_controller.dart';
@@ -29,24 +30,31 @@ class ParentsController extends GetxController {
   final isLoading      = true.obs;
   final processingIds  = <String>[].obs;
 
+  StreamSubscription? _sub;
+
   @override
   void onInit() {
     super.onInit();
     fetchPendingParents();
   }
 
-  Future<void> fetchPendingParents() async {
-    isLoading.value = true;
-    try {
-      final schoolId = Get.find<AuthController>().schoolId.value;
-      var query = _db
-          .collection('parents')
-          .where('accountStatus', isEqualTo: 'pending');
-      if (schoolId.isNotEmpty) {
-        query = query.where('schoolId', isEqualTo: schoolId);
-      }
-      final snapshot = await query.get();
+  @override
+  void onClose() {
+    _sub?.cancel();
+    super.onClose();
+  }
 
+  void fetchPendingParents() {
+    final schoolId = Get.find<AuthController>().schoolId.value;
+    var query = _db
+        .collection('parents')
+        .where('accountStatus', isEqualTo: 'pending');
+    if (schoolId.isNotEmpty) {
+      query = query.where('schoolId', isEqualTo: schoolId);
+    }
+    isLoading.value = true;
+    _sub?.cancel();
+    _sub = query.snapshots().listen((snapshot) async {
       final records = <ParentRecord>[];
       for (final doc in snapshot.docs) {
         final data = doc.data();
@@ -72,10 +80,10 @@ class ParentsController extends GetxController {
         ));
       }
       parents.value = records;
-    } catch (_) {
-    } finally {
       isLoading.value = false;
-    }
+    }, onError: (_) {
+      isLoading.value = false;
+    });
   }
 
   Future<void> updateStatus(String parentId, String status) async {
@@ -88,7 +96,6 @@ class ParentsController extends GetxController {
           .doc(parentId)
           .update({'accountStatus': status});
 
-      // Notify the parent in-app
       final title = status == 'approved'
           ? 'Account Approved'
           : 'Account Not Approved';
@@ -103,13 +110,13 @@ class ParentsController extends GetxController {
         type: 'account_$status',
       );
 
-      // Send email to the parent
       await EmailService.sendParentStatusEmail(
         email: parent.email,
         name: parent.name,
         status: status,
       );
 
+      // Stream will remove the record automatically; do it immediately too for snappy UI
       parents.removeWhere((p) => p.parentId == parentId);
       Get.snackbar(
         status == 'approved' ? 'Approved' : 'Rejected',

@@ -12,6 +12,35 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   static const _pink = Color(0xFFFF3366);
 
+  DateTime? _filterDate;
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _filterDate ?? now,
+      firstDate: now.subtract(const Duration(days: 30)),
+      lastDate: now,
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: _pink,
+            onPrimary: Colors.white,
+            onSurface: Color(0xFF1A1A1A),
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() =>
+          _filterDate = DateTime(picked.year, picked.month, picked.day));
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -88,11 +117,15 @@ class _HistoryPageState extends State<HistoryPage> {
 
                   final docs =
                       (snapshot.data?.docs ?? []).where((doc) {
-                    final ts = (doc.data()
-                            as Map<String, dynamic>)[
-                        'selectionDate'] as Timestamp?;
-                    return ts != null &&
-                        ts.toDate().isAfter(cutoff);
+                    final d = doc.data() as Map<String, dynamic>;
+                    final ts = d['selectionDate'] as Timestamp?;
+                    if (ts == null) return false;
+                    if (_filterDate != null) {
+                      final dd = ts.toDate();
+                      return _isSameDay(
+                          _filterDate!, DateTime(dd.year, dd.month, dd.day));
+                    }
+                    return ts.toDate().isAfter(cutoff);
                   }).toList()
                         ..sort((a, b) {
                           final aMs =
@@ -118,11 +151,15 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Widget _buildHeader() {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(20, 24, 20, 16),
+    const mo = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
       child: Column(
         children: [
-          Text(
+          const Text(
             'HISTORY',
             style: TextStyle(
               fontSize: 17,
@@ -131,11 +168,74 @@ class _HistoryPageState extends State<HistoryPage> {
               color: Color(0xFF1A1A1A),
             ),
           ),
-          SizedBox(height: 4),
-          Text(
+          const SizedBox(height: 4),
+          const Text(
             'Last 30 days',
-            style:
-                TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
+            style: TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: _pickDate,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _filterDate != null
+                        ? _pink.withValues(alpha: 0.10)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _filterDate != null
+                          ? _pink
+                          : const Color(0xFFEEEEEE),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.calendar_today_outlined,
+                          size: 14,
+                          color: _filterDate != null
+                              ? _pink
+                              : const Color(0xFF9B9B9B)),
+                      const SizedBox(width: 6),
+                      Text(
+                        _filterDate != null
+                            ? '${mo[_filterDate!.month]} ${_filterDate!.day}, ${_filterDate!.year}'
+                            : 'Filter by date',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _filterDate != null
+                              ? _pink
+                              : const Color(0xFF9B9B9B),
+                          fontWeight: _filterDate != null
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_filterDate != null) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => setState(() => _filterDate = null),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F0F0),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(Icons.close,
+                        size: 14, color: Color(0xFF9B9B9B)),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),
@@ -143,6 +243,13 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Widget _buildEmpty() {
+    const mo = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final msg = _filterDate != null
+        ? 'No orders on ${mo[_filterDate!.month]} ${_filterDate!.day}.'
+        : 'No orders in the last 30 days.';
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -150,10 +257,9 @@ class _HistoryPageState extends State<HistoryPage> {
           Icon(Icons.receipt_long_outlined,
               size: 64, color: Colors.grey.shade300),
           const SizedBox(height: 16),
-          const Text(
-            'No orders in the last 30 days.',
-            style: TextStyle(
-                fontSize: 14, color: Color(0xFF9B9B9B)),
+          Text(
+            msg,
+            style: const TextStyle(fontSize: 14, color: Color(0xFF9B9B9B)),
           ),
         ],
       ),
@@ -161,9 +267,16 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Widget _buildList(List<QueryDocumentSnapshot> docs) {
+    double totalSpent = 0;
+    for (final doc in docs) {
+      final d = doc.data() as Map<String, dynamic>;
+      totalSpent += (d['price'] as num).toDouble() *
+          (d['quantity'] as num).toInt();
+    }
+    final totalOrders = _groupByOrderId(docs).length;
+
     // Level 1: group by date
-    final byDate =
-        <String, List<QueryDocumentSnapshot>>{};
+    final byDate = <String, List<QueryDocumentSnapshot>>{};
     for (final doc in docs) {
       final ts = ((doc.data() as Map<String, dynamic>)[
               'selectionDate'] as Timestamp)
@@ -172,36 +285,126 @@ class _HistoryPageState extends State<HistoryPage> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-      children: byDate.entries.expand((dateEntry) {
-        // Level 2: group by orderId within each date
-        final byOrder = _groupByOrderId(dateEntry.value);
-        return [
-          Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 8),
-            child: Text(
-              dateEntry.key,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF9B9B9B),
-                letterSpacing: 0.5,
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      children: [
+        _buildSummaryCard(totalSpent, totalOrders),
+        const SizedBox(height: 8),
+        ...byDate.entries.expand((dateEntry) {
+          // Level 2: group by orderId within each date
+          final byOrder = _groupByOrderId(dateEntry.value);
+          return [
+            Padding(
+              padding: const EdgeInsets.only(top: 16, bottom: 8),
+              child: Text(
+                dateEntry.key,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF9B9B9B),
+                  letterSpacing: 0.5,
+                ),
               ),
             ),
+            ...byOrder.entries.map((e) => _buildOrderCard(e.value)),
+          ];
+        }),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard(double total, int orderCount) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [_pink, Color(0xFFFF8C00)]),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: _pink.withValues(alpha: 0.30),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
-          ...byOrder.entries.map(
-              (e) => _buildOrderCard(e.value)),
-        ];
-      }).toList(),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.account_balance_wallet_outlined,
+              color: Colors.white, size: 32),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Total Spent',
+                  style: TextStyle(fontSize: 12, color: Colors.white70),
+                ),
+                Text(
+                  'Rs. ${total.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '$orderCount',
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              const Text(
+                'orders',
+                style: TextStyle(fontSize: 12, color: Colors.white70),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static final Map<String, Future<String>> _idCache = {};
+
+  static Future<String> _fetchMealConnectId(String childId) =>
+      _idCache.putIfAbsent(
+        childId,
+        () => FirebaseFirestore.instance
+            .collection('children')
+            .doc(childId)
+            .get()
+            .then((s) => (s.data()?['mealConnectId'] as String?) ?? ''),
+      );
+
+  Widget _mealConnectIdLabel(String childId) {
+    if (childId.isEmpty) return const SizedBox.shrink();
+    return FutureBuilder<String>(
+      future: _fetchMealConnectId(childId),
+      builder: (_, snap) {
+        final id = snap.data ?? '';
+        if (id.isEmpty) return const SizedBox.shrink();
+        return Text('ID: $id',
+            style: const TextStyle(
+                fontSize: 12, color: Color(0xFF9B9B9B)));
+      },
     );
   }
 
   Widget _buildOrderCard(List<QueryDocumentSnapshot> items) {
     final first = items.first.data() as Map<String, dynamic>;
     final childName = first['childName'] as String? ?? '';
+    final childId = first['childId'] as String? ?? '';
     final ts = first['selectionDate'] as Timestamp?;
-    final timeStr =
-        ts != null ? _timeStr(ts.toDate()) : '';
+    final orderedStr =
+        ts != null ? _timeOnly(ts.toDate()) : '';
     final status = _orderStatus(first);
 
     double total = 0;
@@ -243,20 +446,33 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  childName.isNotEmpty ? childName : 'Student',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A1A1A),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      childName.isNotEmpty ? childName : 'Student',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1A1A1A),
+                      ),
+                    ),
+                    _mealConnectIdLabel(childId),
+                  ],
                 ),
               ),
-              Text(
-                timeStr,
-                style: const TextStyle(
-                    fontSize: 12, color: Color(0xFF9B9B9B)),
-              ),
+              if (orderedStr.isNotEmpty)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('Ordered',
+                        style: TextStyle(
+                            fontSize: 10, color: Color(0xFF9B9B9B))),
+                    Text(orderedStr,
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFF9B9B9B))),
+                  ],
+                ),
             ],
           ),
           const SizedBox(height: 10),
@@ -269,6 +485,13 @@ class _HistoryPageState extends State<HistoryPage> {
                 d['mealName'] as String? ?? 'Meal';
             final qty = (d['quantity'] as num).toInt();
             final price = (d['price'] as num).toDouble();
+            final isDelivered = d['isDelivered'] == true;
+            final deliveryTs = isDelivered
+                ? d['deliveryDate'] as Timestamp?
+                : null;
+            final deliveryStr = deliveryTs != null
+                ? _deliveryDateStr(deliveryTs.toDate())
+                : '';
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(
@@ -277,11 +500,23 @@ class _HistoryPageState extends State<HistoryPage> {
                       size: 14, color: Color(0xFF9B9B9B)),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      mealName,
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF1A1A1A)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          mealName,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF1A1A1A)),
+                        ),
+                        if (deliveryStr.isNotEmpty)
+                          Text(
+                            'Delivered: $deliveryStr',
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF43A047)),
+                          ),
+                      ],
                     ),
                   ),
                   Text(
@@ -403,14 +638,21 @@ class _HistoryPageState extends State<HistoryPage> {
     return '${dt.day} ${mo[dt.month - 1]}';
   }
 
-  String _timeStr(DateTime dt) {
+  String _timeOnly(DateTime dt) {
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final amPm = dt.hour < 12 ? 'AM' : 'PM';
+    return '$h:${dt.minute.toString().padLeft(2, '0')} $amPm';
+  }
+
+  String _deliveryDateStr(DateTime dt) {
+    const days = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const mo = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
-    final date = '${dt.day} ${mo[dt.month - 1]}';
-    final time = '${dt.hour.toString().padLeft(2, '0')}:'
-        '${dt.minute.toString().padLeft(2, '0')}';
-    return '$date  •  $time';
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final amPm = dt.hour < 12 ? 'AM' : 'PM';
+    final time = '$h:${dt.minute.toString().padLeft(2, '0')} $amPm';
+    return '${days[dt.weekday]}, ${dt.day} ${mo[dt.month]}  $time';
   }
 }

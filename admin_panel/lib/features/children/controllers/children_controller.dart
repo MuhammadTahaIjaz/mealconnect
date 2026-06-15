@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
@@ -9,7 +10,9 @@ class ChildRecord {
   final String parentId;
   final String childName;
   final String schoolName;
-  final String classRollNo;
+  final String classLevel;
+  final String section;
+  final String rollNumber;
   final String parentName;
   final String parentEmail;
 
@@ -18,7 +21,9 @@ class ChildRecord {
     required this.parentId,
     required this.childName,
     required this.schoolName,
-    required this.classRollNo,
+    required this.classLevel,
+    required this.section,
+    required this.rollNumber,
     required this.parentName,
     required this.parentEmail,
   });
@@ -31,24 +36,31 @@ class ChildrenController extends GetxController {
   final isLoading     = true.obs;
   final processingIds = <String>[].obs;
 
+  StreamSubscription? _sub;
+
   @override
   void onInit() {
     super.onInit();
     fetchPendingChildren();
   }
 
-  Future<void> fetchPendingChildren() async {
-    isLoading.value = true;
-    try {
-      final schoolId = Get.find<AuthController>().schoolId.value;
-      var query = _db
-          .collection('children')
-          .where('verificationStatus', isEqualTo: 'pending');
-      if (schoolId.isNotEmpty) {
-        query = query.where('schoolId', isEqualTo: schoolId);
-      }
-      final snapshot = await query.get();
+  @override
+  void onClose() {
+    _sub?.cancel();
+    super.onClose();
+  }
 
+  void fetchPendingChildren() {
+    final schoolId = Get.find<AuthController>().schoolId.value;
+    var query = _db
+        .collection('children')
+        .where('verificationStatus', isEqualTo: 'pending');
+    if (schoolId.isNotEmpty) {
+      query = query.where('schoolId', isEqualTo: schoolId);
+    }
+    isLoading.value = true;
+    _sub?.cancel();
+    _sub = query.snapshots().listen((snapshot) async {
       final records = <ChildRecord>[];
       for (final doc in snapshot.docs) {
         final data = doc.data();
@@ -69,16 +81,19 @@ class ChildrenController extends GetxController {
           parentId: parentId,
           childName: (data['name'] as String?) ?? '',
           schoolName: (data['schoolName'] as String?) ?? '',
-          classRollNo: (data['classRollNo'] as String?) ?? '',
+          classLevel: (data['classLevel'] as String?) ?? '',
+          section: (data['section'] as String?) ?? '',
+          rollNumber: (data['rollNumber'] as String?)
+              ?? (data['classRollNo'] as String?) ?? '',
           parentName: parentName,
           parentEmail: parentEmail,
         ));
       }
       children.value = records;
-    } catch (_) {
-    } finally {
       isLoading.value = false;
-    }
+    }, onError: (_) {
+      isLoading.value = false;
+    });
   }
 
   Future<void> updateStatus(String childId, String status) async {
@@ -86,7 +101,7 @@ class ChildrenController extends GetxController {
     try {
       final child = children.firstWhere((c) => c.childId == childId);
 
-      // Block child approval if the parent account is not yet approved
+      // Block child approval if parent is not yet approved
       if (status == 'approved') {
         final parentDoc = await _db
             .collection('parents')
@@ -111,17 +126,25 @@ class ChildrenController extends GetxController {
         }
       }
 
-      await _db
-          .collection('children')
-          .doc(childId)
-          .update({'verificationStatus': status});
+      // Generate MealConnect ID on approval
+      String mealConnectId = '';
+      final Map<String, dynamic> updateData = {'verificationStatus': status};
+      if (status == 'approved') {
+        mealConnectId = _generateMealConnectId(
+          classLevel: child.classLevel,
+          section: child.section,
+          rollNumber: child.rollNumber,
+        );
+        updateData['mealConnectId'] = mealConnectId;
+      }
 
-      // Notify the parent in-app
+      await _db.collection('children').doc(childId).update(updateData);
+
       final title = status == 'approved'
           ? 'Child Verification Approved'
           : 'Child Verification Not Approved';
       final message = status == 'approved'
-          ? '${child.childName}\'s school enrollment has been verified successfully.'
+          ? '${child.childName} has been verified. MealConnect ID: $mealConnectId'
           : '${child.childName}\'s verification was not successful. Please check the details and resubmit.';
 
       await NotificationService.notifyUser(
@@ -131,6 +154,7 @@ class ChildrenController extends GetxController {
         type: 'child_$status',
       );
 
+      // Stream will remove the record automatically; do it immediately too for snappy UI
       children.removeWhere((c) => c.childId == childId);
       Get.snackbar(
         status == 'approved' ? 'Approved' : 'Rejected',
@@ -142,5 +166,30 @@ class ChildrenController extends GetxController {
     } finally {
       processingIds.remove(childId);
     }
+  }
+
+  String _generateMealConnectId({
+    required String classLevel,
+    required String section,
+    required String rollNumber,
+  }) {
+    String prefix;
+    switch (classLevel.toLowerCase().trim()) {
+      case 'play group':
+        prefix = 'PG';
+        break;
+      case 'nursery':
+        prefix = 'N';
+        break;
+      case 'prep':
+        prefix = 'P';
+        break;
+      default:
+        prefix = classLevel.trim();
+    }
+    final sectionLetter = section.trim().isNotEmpty
+        ? section.trim()[0].toUpperCase()
+        : '';
+    return '$prefix$sectionLetter${rollNumber.trim()}';
   }
 }

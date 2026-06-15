@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import '../../auth/controllers/auth_controller.dart';
@@ -31,24 +32,31 @@ class CafeteriasController extends GetxController {
   final isLoading     = true.obs;
   final processingIds = <String>[].obs;
 
+  StreamSubscription? _sub;
+
   @override
   void onInit() {
     super.onInit();
     fetchPendingCafeterias();
   }
 
-  Future<void> fetchPendingCafeterias() async {
-    isLoading.value = true;
-    try {
-      final schoolId = Get.find<AuthController>().schoolId.value;
-      var query = _db
-          .collection('cafeterias')
-          .where('accountStatus', isEqualTo: 'pending');
-      if (schoolId.isNotEmpty) {
-        query = query.where('schoolId', isEqualTo: schoolId);
-      }
-      final snapshot = await query.get();
+  @override
+  void onClose() {
+    _sub?.cancel();
+    super.onClose();
+  }
 
+  void fetchPendingCafeterias() {
+    final schoolId = Get.find<AuthController>().schoolId.value;
+    var query = _db
+        .collection('cafeterias')
+        .where('accountStatus', isEqualTo: 'pending');
+    if (schoolId.isNotEmpty) {
+      query = query.where('schoolId', isEqualTo: schoolId);
+    }
+    isLoading.value = true;
+    _sub?.cancel();
+    _sub = query.snapshots().listen((snapshot) async {
       final records = <CafeteriaRecord>[];
       for (final doc in snapshot.docs) {
         final data = doc.data();
@@ -75,10 +83,10 @@ class CafeteriasController extends GetxController {
         ));
       }
       cafeterias.value = records;
-    } catch (_) {
-    } finally {
       isLoading.value = false;
-    }
+    }, onError: (_) {
+      isLoading.value = false;
+    });
   }
 
   Future<void> approveCafeteria(String cafeteriaId) async {
@@ -108,6 +116,7 @@ class CafeteriasController extends GetxController {
         status: 'approved',
       );
 
+      // Stream will remove the record automatically; do it immediately too for snappy UI
       cafeterias.removeWhere((c) => c.cafeteriaId == cafeteriaId);
       Get.snackbar('Approved', 'Cafeteria has been verified.',
           snackPosition: SnackPosition.BOTTOM);
@@ -144,6 +153,7 @@ class CafeteriasController extends GetxController {
         status: 'rejected',
       );
 
+      // Stream will remove the record automatically; do it immediately too for snappy UI
       cafeterias.removeWhere((c) => c.cafeteriaId == cafeteriaId);
       Get.snackbar('Rejected', 'Cafeteria registration has been rejected.',
           snackPosition: SnackPosition.BOTTOM);

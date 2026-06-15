@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 
@@ -18,6 +19,7 @@ class _SignInScreenState extends State<SignInScreen>
 
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isSendingReset = false;
   String? _errorMessage;
 
   late AnimationController _animController;
@@ -52,6 +54,42 @@ class _SignInScreenState extends State<SignInScreen>
     _emailFocus.dispose();
     _passwordFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      setState(() => _errorMessage = 'Enter your email above first, then tap Forgot Password.');
+      return;
+    }
+    setState(() { _isSendingReset = true; _errorMessage = null; });
+
+    String? error;
+    bool success = false;
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      success = true;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        error = 'No account is registered with this email. Please check and try again.';
+      } else {
+        error = 'Something went wrong. Please try again.';
+      }
+    } catch (_) {
+      error = 'Something went wrong. Please try again.';
+    }
+
+    if (!mounted) return;
+    setState(() { _isSendingReset = false; _errorMessage = error; });
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password reset link sent. Check your inbox.'),
+          backgroundColor: Color(0xFF43A047),
+        ),
+      );
+    }
   }
 
   Future<void> _onSignIn() async {
@@ -222,6 +260,33 @@ class _SignInScreenState extends State<SignInScreen>
                 return null;
               },
             ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: GestureDetector(
+                onTap: _isSendingReset ? null : _forgotPassword,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: _isSendingReset
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: _pink,
+                          ),
+                        )
+                      : const Text(
+                          'Forgot Password?',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: _pink,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+
             if (_errorMessage != null) ...[
               const SizedBox(height: 14),
               _buildErrorBox(_errorMessage!),

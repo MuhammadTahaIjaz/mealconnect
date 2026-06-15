@@ -34,8 +34,9 @@ class _MenuPageState extends State<MenuPage> {
 
   late final String _childId;
   late final String _childName;
-  late final String _schoolId;
-  late final String _childRollNo;
+  late final String _childMealConnectId;
+  late final String _cafeteriaId;
+  late final String _cafeteriaName;
 
   bool _initialized = false;
   String _searchQuery = '';
@@ -43,7 +44,7 @@ class _MenuPageState extends State<MenuPage> {
 
   static const _filterDays = [
     'All', 'Monday', 'Tuesday', 'Wednesday',
-    'Thursday', 'Friday', 'Saturday', 'Sunday',
+    'Thursday', 'Friday', 'Saturday',
   ];
   String _selectedFilterDay = 'All';
 
@@ -65,19 +66,19 @@ class _MenuPageState extends State<MenuPage> {
             days.fold<int>(0, (ds, d) => ds + ((d as Map)['qty'] as int));
       });
 
-  // Returns tomorrow → end of current week (Sunday).
-  // If today is Sunday, returns next Mon–Sun (7 days).
+  // Returns today → Saturday of the current Sun–Sat week.
+  // On Sunday: 7 days (Sun–Sat). On Saturday: just today.
   List<DateTime> _getRemainingWeekDays() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    int daysUntilSunday = DateTime.sunday - today.weekday;
-    if (daysUntilSunday <= 0) daysUntilSunday += 7;
-    final weekEnd = today.add(Duration(days: daysUntilSunday));
-    final start = today.add(const Duration(days: 1));
+    // weekday: Mon=1…Sat=6, Sun=7 → (6 - weekday + 7) % 7 gives days to Saturday
+    final daysUntilSaturday =
+        (DateTime.saturday - today.weekday + 7) % 7;
+    final weekEnd = today.add(Duration(days: daysUntilSaturday));
     final days = <DateTime>[];
-    for (var d = start; !d.isAfter(weekEnd);
+    for (var d = today; !d.isAfter(weekEnd);
         d = d.add(const Duration(days: 1))) {
-      days.add(d);
+      if (d.weekday != DateTime.sunday) days.add(d);
     }
     return days;
   }
@@ -149,8 +150,9 @@ class _MenuPageState extends State<MenuPage> {
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     _childId = (args?['childId'] as String?) ?? '';
     _childName = (args?['name'] as String?) ?? 'Child';
-    _schoolId = (args?['schoolId'] as String?) ?? '';
-    _childRollNo = (args?['classRollNo'] as String?) ?? '';
+    _childMealConnectId = (args?['mealConnectId'] as String?) ?? '';
+    _cafeteriaId = (args?['cafeteriaId'] as String?) ?? '';
+    _cafeteriaName = (args?['cafeteriaName'] as String?) ?? '';
   }
 
   @override
@@ -175,7 +177,7 @@ class _MenuPageState extends State<MenuPage> {
       'cart': cartList,
       'childId': _childId,
       'childName': _childName,
-      'childRollNo': _childRollNo,
+      'childMealConnectId': _childMealConnectId,
     });
   }
 
@@ -318,9 +320,13 @@ class _MenuPageState extends State<MenuPage> {
                   ),
                 ),
                 Text(
-                  _childName,
+                  _cafeteriaName.isNotEmpty
+                      ? '$_childName · $_cafeteriaName'
+                      : _childName,
                   style: const TextStyle(
                       fontSize: 13, color: Color(0xFF9B9B9B)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -435,10 +441,10 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   Widget _buildMealsGrid() {
-    if (_schoolId.isEmpty) {
+    if (_cafeteriaId.isEmpty) {
       return const Center(
         child: Text(
-          'No school associated with this child.',
+          'No cafeteria selected.',
           style: TextStyle(
               color: Color(0xFF9B9B9B), fontSize: 14),
         ),
@@ -448,7 +454,7 @@ class _MenuPageState extends State<MenuPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('meals')
-          .where('schoolId', isEqualTo: _schoolId)
+          .where('cafeteriaId', isEqualTo: _cafeteriaId)
           .where('isAvailable', isEqualTo: true)
           .snapshots(),
       builder: (context, snapshot) {
@@ -501,16 +507,9 @@ class _MenuPageState extends State<MenuPage> {
           );
         }
 
-        return GridView.builder(
+        return ListView.builder(
           padding:
               const EdgeInsets.fromLTRB(20, 4, 20, 20),
-          gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 14,
-            mainAxisSpacing: 14,
-            childAspectRatio: 0.72,
-          ),
           itemCount: filtered.length,
           itemBuilder: (context, i) {
             final doc = filtered[i];
@@ -532,7 +531,7 @@ class _MenuPageState extends State<MenuPage> {
     final av = data['availability'];
     String daysLabel = '';
     if (av is List && av.isNotEmpty) {
-      daysLabel = av.length == 7
+      daysLabel = av.length >= 6
           ? 'All days'
           : av
               .map((d) => (d as String).substring(0, 3))
@@ -542,6 +541,8 @@ class _MenuPageState extends State<MenuPage> {
     }
 
     return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -553,33 +554,30 @@ class _MenuPageState extends State<MenuPage> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
           ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16)),
+            borderRadius: BorderRadius.circular(12),
             child: imageUrl.isNotEmpty
                 ? Image.network(
                     imageUrl,
-                    height: 100,
-                    width: double.infinity,
+                    width: 82,
+                    height: 82,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) =>
                         _imageFallback(),
                   )
                 : _imageFallback(),
           ),
-          Padding(
-            padding:
-                const EdgeInsets.fromLTRB(10, 8, 10, 10),
+          const SizedBox(width: 14),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   name,
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF1A1A1A),
                   ),
@@ -587,29 +585,28 @@ class _MenuPageState extends State<MenuPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (daysLabel.isNotEmpty) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Text(
                     daysLabel,
                     style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: Color(0xFF9B9B9B)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
-                const SizedBox(height: 6),
+                const SizedBox(height: 10),
                 Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       'Rs. ${price.toStringAsFixed(2)}',
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: _pink,
                       ),
                     ),
+                    const Spacer(),
                     _buildCartControl(mealId, data),
                   ],
                 ),
@@ -652,7 +649,7 @@ class _MenuPageState extends State<MenuPage> {
       onTap: () => _openDaySelection(mealId, data),
       child: Container(
         height: 28,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
         decoration: BoxDecoration(
           gradient:
               const LinearGradient(colors: [_pink, _orange]),
@@ -679,11 +676,11 @@ class _MenuPageState extends State<MenuPage> {
 
   Widget _imageFallback() {
     return Container(
-      height: 100,
-      width: double.infinity,
+      width: 82,
+      height: 82,
       color: const Color(0xFFF7F8FC),
       child: const Icon(Icons.fastfood_outlined,
-          size: 36, color: Color(0xFFCCCCCC)),
+          size: 32, color: Color(0xFFCCCCCC)),
     );
   }
 }

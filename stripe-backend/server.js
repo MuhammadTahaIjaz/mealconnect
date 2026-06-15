@@ -2,9 +2,15 @@ require('dotenv').config();
 const express = require('express');
 const Stripe = require('stripe');
 const cors = require('cors');
+const admin = require('firebase-admin');
 
 const app = express();
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+
+// Download service-account.json from Firebase Console →
+// Project Settings → Service Accounts → Generate new private key
+const serviceAccount = require('./service-account.json');
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 
 app.use(cors());
 app.use(express.json());
@@ -146,6 +152,51 @@ app.post('/transfer-to-cafeteria', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+// Delete a parent's Stripe customer and Firebase Auth user.
+// Firestore cleanup (parents, users, children) is handled client-side.
+app.post('/delete-parent', async (req, res) => {
+  const { uid, customerId } = req.body;
+  if (!uid) return res.status(400).json({ error: 'uid is required' });
+
+  if (customerId) {
+    try {
+      await stripe.customers.del(customerId);
+    } catch (_) {
+      // Already deleted or never created — continue
+    }
+  }
+
+  try {
+    await admin.auth().deleteUser(uid);
+  } catch (_) {
+    // User may already be deleted — continue
+  }
+
+  res.json({ success: true });
+});
+
+// Delete a cafeteria's Stripe Express account and Firebase Auth user.
+// Firestore cleanup (cafeterias, users, meals) is handled client-side.
+app.post('/delete-cafeteria', async (req, res) => {
+  const { uid, stripeAccountId } = req.body;
+  if (!uid) return res.status(400).json({ error: 'uid is required' });
+
+  if (stripeAccountId) {
+    try {
+      await stripe.accounts.del(stripeAccountId);
+    } catch (_) {
+      // Already deleted or never fully created — continue
+    }
+  }
+
+  try {
+    await admin.auth().deleteUser(uid);
+  } catch (_) {
+    // User may already be deleted — continue
+  }
+
+  res.json({ success: true });
 });
 
 const PORT = process.env.PORT || 3000;

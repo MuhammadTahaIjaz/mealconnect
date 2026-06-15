@@ -1,10 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
 
 class CafeteriaProfilePage extends StatefulWidget {
-  const CafeteriaProfilePage({super.key});
+  const CafeteriaProfilePage({super.key, this.onBeforeSignOut});
+
+  final VoidCallback? onBeforeSignOut;
 
   @override
   State<CafeteriaProfilePage> createState() => _CafeteriaProfilePageState();
@@ -13,23 +17,27 @@ class CafeteriaProfilePage extends StatefulWidget {
 class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
   static const _pink = Color(0xFFFF3366);
   static const _orange = Color(0xFFFF8C00);
+  static const _backendUrl = 'http://72.61.254.215:3000';
 
   final _nameController = TextEditingController();
+  final _cafeteriaNameController = TextEditingController();
+  final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _nameFormKey = GlobalKey<FormState>();
+  bool _obscureCurrent = true;
+  final _detailsFormKey = GlobalKey<FormState>();
   final _passwordFormKey = GlobalKey<FormState>();
 
   bool _obscureNew = true;
   bool _obscureConfirm = true;
-  bool _savingName = false;
+  bool _savingDetails = false;
   bool _savingPassword = false;
   bool _loading = true;
   bool _deletingAccount = false;
 
   String _email = '';
   String _schoolDisplayName = '';
-  String _cafeteriaName = '';
+  String _schoolId = '';
 
   @override
   void initState() {
@@ -40,6 +48,8 @@ class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _cafeteriaNameController.dispose();
+    _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -63,17 +73,17 @@ class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
             .collection('schools')
             .doc(schoolId)
             .get();
-        schoolName =
-            (schoolDoc.data()?['displayName'] as String?) ?? '';
+        schoolName = (schoolDoc.data()?['displayName'] as String?) ?? '';
       }
 
       if (mounted) {
         setState(() {
           _nameController.text = (userData['name'] as String?) ?? '';
+          _cafeteriaNameController.text =
+              (cafeteriaData['cafeteriaName'] as String?) ?? '';
           _email = (userData['email'] as String?) ?? '';
           _schoolDisplayName = schoolName;
-          _cafeteriaName =
-              (cafeteriaData['cafeteriaName'] as String?) ?? '';
+          _schoolId = schoolId;
           _loading = false;
         });
       }
@@ -82,86 +92,215 @@ class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
     }
   }
 
-  Future<void> _saveName() async {
-    if (!(_nameFormKey.currentState?.validate() ?? false)) return;
-    setState(() => _savingName = true);
+  Future<void> _saveChanges() async {
+    if (!(_detailsFormKey.currentState?.validate() ?? false)) return;
+    setState(() => _savingDetails = true);
     try {
       final uid = FirebaseAuth.instance.currentUser!.uid;
+      final db = FirebaseFirestore.instance;
       final name = _nameController.text.trim();
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .update({'name': name});
+      final cafName = _cafeteriaNameController.text.trim();
+
+      final batch = db.batch();
+      batch.update(db.collection('users').doc(uid), {'name': name});
+      batch.update(db.collection('cafeterias').doc(uid), {
+        'cafeteriaName': cafName,
+        'accountStatus': 'pending',
+        'isVerified': false,
+      });
+      await batch.commit();
       await FirebaseAuth.instance.currentUser!.updateDisplayName(name);
+
+      // Notify school admin for re-verification
+      if (_schoolId.isNotEmpty) {
+        final adminSnap = await db
+            .collection('admins')
+            .where('schoolId', isEqualTo: _schoolId)
+            .limit(1)
+            .get();
+        if (adminSnap.docs.isNotEmpty) {
+          final adminUid =
+              adminSnap.docs.first.data()['userId'] as String?;
+          if (adminUid != null) {
+            await db.collection('notifications').add({
+              'userId': adminUid,
+              'title': 'Cafeteria Profile Updated',
+              'message':
+                  '$cafName has updated their profile and is awaiting re-verification.',
+              'type': 'new_cafeteria_request',
+              'isRead': false,
+              'timestamp': FieldValue.serverTimestamp(),
+            });
+          }
+        }
+      }
+
       if (mounted) {
-        FocusScope.of(context).unfocus();
-        _showSnack('Name updated successfully.', success: true);
+        Navigator.pushNamedAndRemoveUntil(
+            context, '/cafeteria-pending', (_) => false);
       }
     } catch (_) {
-      if (mounted) _showSnack('Failed to update name. Try again.');
+      if (mounted) _showSnack('Failed to save changes. Try again.');
     } finally {
-      if (mounted) setState(() => _savingName = false);
+      if (mounted) setState(() => _savingDetails = false);
     }
   }
 
-  void _confirmDeleteAccount() {
-    showDialog(
+  Future<void> _confirmDeleteAccount() async {
+    final passwordController = TextEditingController();
+    bool obscure = true;
+    String? dialogError;
+    bool dialogLoading = false;
+
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Delete Account',
-          style: TextStyle(
-              fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
-        ),
-        content: const Text(
-          'This will permanently delete your cafeteria account and all associated data. This cannot be undone.',
-          style: TextStyle(fontSize: 13, color: Color(0xFF9B9B9B)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('CANCEL',
-                style: TextStyle(color: Color(0xFF9B9B9B))),
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'Delete Account',
+            style: TextStyle(
+                fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteAccount();
-            },
-            child: const Text('DELETE',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This will permanently delete your cafeteria account and all associated data. This cannot be undone.',
                 style: TextStyle(
-                    color: Color(0xFFE53935),
-                    fontWeight: FontWeight.w700)),
+                    fontSize: 13,
+                    color: Color(0xFF9B9B9B),
+                    height: 1.5),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: obscure,
+                decoration: InputDecoration(
+                  labelText: 'Enter your password to confirm',
+                  labelStyle: const TextStyle(
+                      fontSize: 13, color: Color(0xFF9B9B9B)),
+                  errorText: dialogError,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscure
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      size: 20,
+                    ),
+                    onPressed: () =>
+                        setDialogState(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: dialogLoading
+                  ? null
+                  : () => Navigator.pop(ctx, false),
+              child: const Text('CANCEL',
+                  style: TextStyle(color: Color(0xFF9B9B9B))),
+            ),
+            TextButton(
+              onPressed: dialogLoading
+                  ? null
+                  : () async {
+                      final pwd = passwordController.text;
+                      if (pwd.isEmpty) {
+                        setDialogState(() =>
+                            dialogError = 'Password is required');
+                        return;
+                      }
+                      setDialogState(() {
+                        dialogLoading = true;
+                        dialogError = null;
+                      });
+                      try {
+                        final user =
+                            FirebaseAuth.instance.currentUser!;
+                        final credential =
+                            EmailAuthProvider.credential(
+                          email: user.email!,
+                          password: pwd,
+                        );
+                        await user.reauthenticateWithCredential(
+                            credential);
+                        if (ctx.mounted) Navigator.pop(ctx, true);
+                      } on FirebaseAuthException {
+                        setDialogState(() {
+                          dialogLoading = false;
+                          dialogError = 'Incorrect password.';
+                        });
+                      }
+                    },
+              style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFE53935)),
+              child: dialogLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            Color(0xFFE53935)),
+                      ),
+                    )
+                  : const Text('DELETE',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
       ),
     );
+
+    passwordController.dispose();
+    if (confirmed == true && mounted) _deleteAccount();
   }
 
   Future<void> _deleteAccount() async {
     setState(() => _deletingAccount = true);
     try {
-      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
       final db = FirebaseFirestore.instance;
+
+      widget.onBeforeSignOut?.call();
+
+      final cafDoc = await db.collection('cafeterias').doc(uid).get();
+      final stripeAccountId =
+          cafDoc.data()?['stripeAccountId'] as String?;
+
+      await http.post(
+        Uri.parse('$_backendUrl/delete-cafeteria'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'uid': uid, 'stripeAccountId': stripeAccountId}),
+      );
 
       final batch = db.batch();
       batch.delete(db.collection('cafeterias').doc(uid));
       batch.delete(db.collection('users').doc(uid));
       await batch.commit();
 
-      await FirebaseAuth.instance.currentUser!.delete();
+      final meals = await db
+          .collection('meals')
+          .where('cafeteriaId', isEqualTo: uid)
+          .get();
+      if (meals.docs.isNotEmpty) {
+        final mealBatch = db.batch();
+        for (final doc in meals.docs) mealBatch.delete(doc.reference);
+        await mealBatch.commit();
+      }
 
       if (mounted) {
         Navigator.pushNamedAndRemoveUntil(
             context, '/type-selection', (_) => false);
-      }
-    } on FirebaseAuthException catch (e) {
-      if (mounted) {
-        _showSnack(e.code == 'requires-recent-login'
-            ? 'Please sign out and sign back in, then try again.'
-            : 'Failed to delete account. Try again.');
       }
     } catch (_) {
       if (mounted) _showSnack('Failed to delete account. Try again.');
@@ -174,8 +313,14 @@ class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
     if (!(_passwordFormKey.currentState?.validate() ?? false)) return;
     setState(() => _savingPassword = true);
     try {
-      await FirebaseAuth.instance.currentUser!
-          .updatePassword(_newPasswordController.text);
+      final user = FirebaseAuth.instance.currentUser!;
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: _currentPasswordController.text,
+      );
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(_newPasswordController.text);
+      widget.onBeforeSignOut?.call();
       await AuthService.signOut();
       if (mounted) {
         Navigator.pushNamedAndRemoveUntil(
@@ -183,11 +328,13 @@ class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
-        _showSnack(e.code == 'requires-recent-login'
-            ? 'Please sign out and sign back in before changing your password.'
-            : e.code == 'weak-password'
-                ? 'Password must be at least 6 characters.'
-                : 'Failed to change password. Try again.');
+        _showSnack(
+          e.code == 'wrong-password' || e.code == 'invalid-credential'
+              ? 'Current password is incorrect.'
+              : e.code == 'weak-password'
+                  ? 'Password must be at least 6 characters.'
+                  : 'Failed to change password. Try again.',
+        );
       }
     } finally {
       if (mounted) setState(() => _savingPassword = false);
@@ -321,7 +468,7 @@ class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
 
   Widget _buildDetailsSection() {
     return Form(
-      key: _nameFormKey,
+      key: _detailsFormKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -329,19 +476,55 @@ class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
           const SizedBox(height: 16),
           _readOnlyField(label: 'School', value: _schoolDisplayName),
           const SizedBox(height: 16),
-          _readOnlyField(label: 'Cafeteria Name', value: _cafeteriaName),
+          _editableField(
+            controller: _cafeteriaNameController,
+            label: 'Cafeteria Name',
+            validator: (v) => (v?.trim().isEmpty ?? true)
+                ? 'Cafeteria name cannot be empty'
+                : null,
+          ),
           const SizedBox(height: 16),
           _editableField(
             controller: _nameController,
-            label: 'Full Name',
+            label: 'Owner Name',
             validator: (v) =>
-                (v?.trim().isEmpty ?? true) ? 'Name cannot be empty' : null,
+                (v?.trim().isEmpty ?? true) ? 'Owner name cannot be empty' : null,
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF8E1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: const Color(0xFFF5A623).withValues(alpha: 0.45)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.info_outline,
+                    color: Color(0xFFF5A623), size: 18),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Saving changes will pause your account for re-approval. '
+                    'You will not be able to use the app until the school admin '
+                    'reviews and approves your updated profile.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF8B6900),
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 20),
           _gradientButton(
-            label: 'SAVE NAME',
-            loading: _savingName,
-            onPressed: _saveName,
+            label: 'SAVE CHANGES',
+            loading: _savingDetails,
+            onPressed: _saveChanges,
           ),
         ],
       ),
@@ -354,6 +537,16 @@ class _CafeteriaProfilePageState extends State<CafeteriaProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _passwordField(
+            controller: _currentPasswordController,
+            label: 'Current Password',
+            obscure: _obscureCurrent,
+            onToggle: () =>
+                setState(() => _obscureCurrent = !_obscureCurrent),
+            validator: (v) =>
+                (v == null || v.isEmpty) ? 'Enter your current password' : null,
+          ),
+          const SizedBox(height: 16),
           _passwordField(
             controller: _newPasswordController,
             label: 'New Password',

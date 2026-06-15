@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'active_orders_page.dart';
 import 'meal_management_page.dart';
 import 'cafeteria_history_page.dart';
 import 'cafeteria_notifications_page.dart';
 import 'cafeteria_settings_page.dart';
+import 'stripe_connect_page.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -14,23 +18,128 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _currentIndex = 0;
+  late final List<Widget> _pages;
+  StreamSubscription<User?>? _authSub;
+  bool _authInitialSkipped = false;
+  bool _stripeComplete = true; // assume complete until checked
 
-  final List<Widget> _pages = const [
-    ActiveOrdersPage(),
-    MealManagementPage(),
-    CafeteriaHistoryPage(),
-    CafeteriaNotificationsPage(),
-    CafeteriaSettingsPage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const ActiveOrdersPage(),
+      const MealManagementPage(),
+      const CafeteriaHistoryPage(),
+      const CafeteriaNotificationsPage(),
+      CafeteriaSettingsPage(onBeforeSignOut: () { _authSub?.cancel(); _authSub = null; }),
+    ];
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (!_authInitialSkipped) { _authInitialSkipped = true; return; }
+      if (user == null && mounted) _showAccountDeletedDialog();
+    });
+    _loadStripeStatus();
+  }
+
+  Future<void> _loadStripeStatus() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('cafeterias')
+          .doc(uid)
+          .get();
+      final accountId = doc.data()?['stripeAccountId'] as String?;
+      if (mounted) setState(() => _stripeComplete = accountId != null);
+    } catch (_) {
+      if (mounted) setState(() => _stripeComplete = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
+  void _showAccountDeletedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Account Removed',
+          style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Your account no longer exists. Please contact your school admin for more information.',
+          style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF9B9B9B)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext, rootNavigator: true)
+                .pushNamedAndRemoveUntil('/type-selection', (_) => false),
+            child: const Text(
+              'OK',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                color: Color(0xFFFF3366),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
+      body: Column(
+        children: [
+          if (!_stripeComplete) _buildStripeBanner(),
+          Expanded(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: _pages,
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildStripeBanner() {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const StripeConnectPage()),
+      ).then((_) => _loadStripeStatus()),
+      child: Container(
+        width: double.infinity,
+        color: const Color(0xFFFFF8E1),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: SafeArea(
+          bottom: false,
+          child: Row(
+            children: const [
+              Icon(Icons.warning_amber_rounded,
+                  color: Color(0xFFF5A623), size: 18),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Complete your bank account setup to receive payments.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF8B6900)),
+                ),
+              ),
+              Icon(Icons.chevron_right,
+                  color: Color(0xFFF5A623), size: 18),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

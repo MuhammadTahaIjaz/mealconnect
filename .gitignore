@@ -9,6 +9,7 @@ designs/
 # Firebase config (contains API keys — never push)
 google-services.json
 GoogleService-Info.plist
+stripe-backend/service-account.json
 
 # Miscellaneous
 *.class

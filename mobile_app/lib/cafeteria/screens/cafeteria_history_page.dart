@@ -531,8 +531,9 @@ class _CafeteriaHistoryPageState
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     final date = '${dt.day} ${mo[dt.month - 1]}';
-    final time = '${dt.hour.toString().padLeft(2, '0')}:'
-        '${dt.minute.toString().padLeft(2, '0')}';
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final amPm = dt.hour < 12 ? 'AM' : 'PM';
+    final time = '$h:${dt.minute.toString().padLeft(2, '0')} $amPm';
     return '$date  •  $time';
   }
 }

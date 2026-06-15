@@ -16,12 +16,19 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
   static const _orange = Color(0xFFFF8C00);
 
   late final StreamSubscription<DocumentSnapshot> _statusSub;
+  StreamSubscription<User?>? _authSub;
   bool _navigating = false;
+  bool _authInitialSkipped = false;
 
   @override
   void initState() {
     super.initState();
     final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (!_authInitialSkipped) { _authInitialSkipped = true; return; }
+      if (user == null && mounted) _showAccountDeletedDialog();
+    });
 
     _statusSub = FirebaseFirestore.instance
         .collection('cafeterias')
@@ -41,13 +48,48 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
   @override
   void dispose() {
     _statusSub.cancel();
+    _authSub?.cancel();
     super.dispose();
   }
 
+  void _showAccountDeletedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Account Removed',
+          style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Your account no longer exists. Please contact your school admin for more information.',
+          style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF9B9B9B)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext, rootNavigator: true)
+                .pushNamedAndRemoveUntil('/type-selection', (_) => false),
+            child: const Text(
+              'OK',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                color: Color(0xFFFF3366),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _signOut() async {
+    _authSub?.cancel();
+    _authSub = null;
     await AuthService.signOut();
     if (mounted) {
-      Navigator.pushReplacementNamed(context, '/splash');
+      Navigator.pushReplacementNamed(context, '/type-selection');
     }
   }
 

@@ -139,6 +139,44 @@ class _LoginScreenState extends State<LoginScreen> {
                           : (_) => _submit(),
                     )),
 
+                // ── Forgot password (login mode only) ────────────────────────
+                Obx(() => !_isSignUp.value
+                    ? Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () async {
+                            final err = await _auth.sendPasswordReset(
+                                _emailController.text.trim());
+                            if (err != null) {
+                              _auth.errorMessage.value = err;
+                            } else {
+                              _auth.errorMessage.value = '';
+                              Get.snackbar(
+                                'Email Sent',
+                                'Password reset link sent. Check your inbox.',
+                                snackPosition: SnackPosition.BOTTOM,
+                                backgroundColor: AppColors.success,
+                                colorText: Colors.white,
+                                margin: const EdgeInsets.all(16),
+                              );
+                            }
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Forgot Password?',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 12,
+                                color: AppColors.primaryPink,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink()),
+
                 // ── Sign-up only: School Name + Branch ────────────────────────
                 Obx(() => _isSignUp.value
                     ? Column(

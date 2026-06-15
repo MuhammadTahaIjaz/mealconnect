@@ -27,8 +27,9 @@ class ReportsController extends GetxController {
       final schoolId = Get.find<AuthController>().schoolId.value;
       if (schoolId.isEmpty) { return; }
 
-      final from = DateTime.now().subtract(const Duration(days: 29));
-      final fromDate = DateTime(from.year, from.month, from.day);
+      final now = DateTime.now();
+      final fromDate = DateTime(now.year, now.month, 1);
+      final dayCount = now.day; // day 1 through today inclusive
 
       // ── Get this school's cafeteria IDs ────────────────────────────────
       final cafSnap = await _db
@@ -38,7 +39,7 @@ class ReportsController extends GetxController {
       final cafIds = cafSnap.docs.map((d) => d.id).toList();
 
       if (cafIds.isEmpty) {
-        _setEmpty(fromDate);
+        _setEmpty(fromDate, dayCount);
         return;
       }
 
@@ -56,10 +57,10 @@ class ReportsController extends GetxController {
         allDocs.addAll(snap.docs);
       }
 
-      // ── Initialise a slot for every day in the 30-day window ──────────
+      // ── Initialise a slot for every day in the month-to-date window ────
       // key = 'yyyy-MM-dd', value = Set of unique orderIds for that day
       final Map<String, Set<String>> ordersByDay = {};
-      for (var i = 0; i < 30; i++) {
+      for (var i = 0; i < dayCount; i++) {
         final day = fromDate.add(Duration(days: i));
         ordersByDay[_key(day)] = {};
       }
@@ -103,9 +104,9 @@ class ReportsController extends GetxController {
     }
   }
 
-  void _setEmpty(DateTime fromDate) {
+  void _setEmpty(DateTime fromDate, int dayCount) {
     final entries = <DailyDelivery>[];
-    for (var i = 0; i < 30; i++) {
+    for (var i = 0; i < dayCount; i++) {
       entries.add(DailyDelivery(fromDate.add(Duration(days: i)), 0));
     }
     dailyDeliveries.value = entries;

@@ -7,7 +7,9 @@ import 'stripe_connect_page.dart';
 import 'income_page.dart';
 
 class CafeteriaSettingsPage extends StatelessWidget {
-  const CafeteriaSettingsPage({super.key});
+  const CafeteriaSettingsPage({super.key, this.onBeforeSignOut});
+
+  final VoidCallback? onBeforeSignOut;
 
   static const _orange = Color(0xFFF5A623);
 
@@ -30,15 +32,18 @@ class CafeteriaSettingsPage extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             _buildItem(
+              context,
               label: 'Profile',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => const CafeteriaProfilePage()),
+                    builder: (_) => CafeteriaProfilePage(
+                        onBeforeSignOut: onBeforeSignOut)),
               ),
             ),
             _buildDivider(),
             _buildItem(
+              context,
               label: 'Bank Account',
               onTap: () => Navigator.push(
                 context,
@@ -48,15 +53,16 @@ class CafeteriaSettingsPage extends StatelessWidget {
             ),
             _buildDivider(),
             _buildItem(
+              context,
               label: 'Income',
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(
-                    builder: (_) => const IncomePage()),
+                MaterialPageRoute(builder: (_) => const IncomePage()),
               ),
             ),
             _buildDivider(),
             _buildItem(
+              context,
               label: 'Privacy Policy',
               onTap: () => Navigator.push(
                 context,
@@ -67,6 +73,7 @@ class CafeteriaSettingsPage extends StatelessWidget {
             ),
             _buildDivider(),
             _buildItem(
+              context,
               label: 'Terms & Conditions',
               onTap: () => Navigator.push(
                 context,
@@ -77,8 +84,10 @@ class CafeteriaSettingsPage extends StatelessWidget {
             ),
             _buildDivider(),
             _buildItem(
+              context,
               label: 'Sign Out',
               onTap: () async {
+                onBeforeSignOut?.call();
                 await AuthService.signOut();
                 if (context.mounted) {
                   Navigator.pushReplacementNamed(
@@ -93,7 +102,8 @@ class CafeteriaSettingsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildItem({
+  Widget _buildItem(
+    BuildContext context, {
     required String label,
     required VoidCallback onTap,
   }) {
