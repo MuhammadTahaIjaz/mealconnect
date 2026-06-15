@@ -50,7 +50,7 @@ class DeliveryReportsPage extends GetView<ReportsController> {
               ),
             ),
             Text(
-              'Last 30 days delivery analytics',
+              'Current month\'s delivery analytics',
               style: TextStyle(
                 fontFamily: 'Poppins',
                 fontSize: 14,
@@ -58,11 +58,6 @@ class DeliveryReportsPage extends GetView<ReportsController> {
               ),
             ),
           ],
-        ),
-        IconButton(
-          onPressed: controller.fetchDeliveryReport,
-          icon: const Icon(Icons.refresh, color: AppColors.primaryPink),
-          tooltip: 'Refresh',
         ),
       ],
     );
@@ -138,6 +133,7 @@ class DeliveryReportsPage extends GetView<ReportsController> {
     final spots = data.asMap().entries.map((e) {
       return FlSpot(e.key.toDouble(), e.value.count.toDouble());
     }).toList();
+    final xInterval = data.length <= 10 ? 1.0 : 5.0;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -195,17 +191,16 @@ class DeliveryReportsPage extends GetView<ReportsController> {
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      interval: 5,
+                      interval: xInterval,
                       getTitlesWidget: (v, _) {
                         final idx = v.toInt();
                         if (idx < 0 || idx >= data.length) {
                           return const SizedBox.shrink();
                         }
-                        final d = data[idx].date;
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
-                            '${d.day}/${d.month}',
+                            '${data[idx].date.day}',
                             style: const TextStyle(
                                 fontFamily: 'Poppins',
                                 fontSize: 10,
@@ -225,6 +220,7 @@ class DeliveryReportsPage extends GetView<ReportsController> {
                   LineChartBarData(
                     spots: spots,
                     isCurved: true,
+                    preventCurveOverShooting: true,
                     gradient: AppColors.primaryGradient,
                     barWidth: 3,
                     dotData: const FlDotData(show: false),

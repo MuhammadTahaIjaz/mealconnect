@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -19,11 +20,12 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
   // Stripe
   String? _stripeAccountId;
   final Set<String> _delivering = {};
+  StreamSubscription<DocumentSnapshot>? _cafeteriaSub;
 
   // Cafeteria info
   String _cafeteriaSchoolId = '';
 
-  // Week day filter — selected day (default: today)
+  // Week day filter, selected day (default: today)
   late DateTime _selectedDay;
 
   // Student search
@@ -43,32 +45,35 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
 
   @override
   void dispose() {
+    _cafeteriaSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadCafeteriaInfo() async {
+  void _loadCafeteriaInfo() {
     final uid = FirebaseAuth.instance.currentUser!.uid;
-    final doc = await FirebaseFirestore.instance
+    _cafeteriaSub = FirebaseFirestore.instance
         .collection('cafeterias')
         .doc(uid)
-        .get();
-    if (!mounted) return;
-    setState(() {
-      _cafeteriaSchoolId =
-          (doc.data()?['schoolId'] as String?) ?? '';
-      _stripeAccountId =
-          doc.data()?['stripeAccountId'] as String?;
+        .snapshots()
+        .listen((doc) {
+      if (!mounted) return;
+      setState(() {
+        _cafeteriaSchoolId =
+            (doc.data()?['schoolId'] as String?) ?? '';
+        _stripeAccountId =
+            doc.data()?['stripeAccountId'] as String?;
+      });
     });
   }
 
-  // Returns Mon–Sun of the current week
+  // Returns Sun–Sat of the current week (week resets every Sunday)
   List<DateTime> _getCurrentWeekDays() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final monday = today.subtract(Duration(days: today.weekday - 1));
-    return List.generate(
-        7, (i) => monday.add(Duration(days: i)));
+    // weekday: Mon=1 … Sat=6, Sun=7 → 7%7=0, so Sunday stays put
+    final sunday = today.subtract(Duration(days: today.weekday % 7));
+    return List.generate(7, (i) => sunday.add(Duration(days: i)));
   }
 
   bool _isSameDay(DateTime a, DateTime b) =>
@@ -100,7 +105,7 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
     try {
       final snap = await FirebaseFirestore.instance
           .collection('children')
-          .where('classRollNo', isEqualTo: query)
+          .where('mealConnectId', isEqualTo: query)
           .get();
       final matches = snap.docs
           .where((d) =>
@@ -241,7 +246,6 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
             _buildHeader(),
             _buildWeekFilter(),
             _buildSearchBar(),
-            if (_stripeAccountId == null) _buildNoBankBanner(),
             Expanded(
               child: _isSearching
                   ? const Center(
@@ -457,7 +461,7 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                 style: const TextStyle(
                     fontSize: 14, color: Color(0xFF1A1A1A)),
                 decoration: InputDecoration(
-                  hintText: 'Search by student ID…',
+                  hintText: 'Search by MealConnect ID…',
                   hintStyle: const TextStyle(
                       color: Color(0xFF9B9B9B), fontSize: 14),
                   prefixIcon: const Icon(Icons.badge_outlined,
@@ -510,34 +514,6 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
     );
   }
 
-  Widget _buildNoBankBanner() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 6),
-      padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF8E1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-            color: const Color(0xFFF5A623).withValues(alpha: 0.4)),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.account_balance_outlined,
-              size: 18, color: Color(0xFF8B6900)),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Go to Settings → Bank Account to receive payments.',
-              style:
-                  TextStyle(fontSize: 12, color: Color(0xFF8B6900)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSearchError() {
     return Center(
       child: Padding(
@@ -562,7 +538,7 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
     final name =
         (_foundChild!['name'] as String?) ?? 'Student';
     final rollNo =
-        (_foundChild!['classRollNo'] as String?) ?? '';
+        (_foundChild!['mealConnectId'] as String?) ?? '';
     final initial =
         name.isNotEmpty ? name[0].toUpperCase() : '?';
     return Container(
@@ -641,6 +617,33 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
     );
   }
 
+  // Per-session cache: childId → mealConnectId Future (avoids duplicate reads)
+  static final Map<String, Future<String>> _idCache = {};
+
+  static Future<String> _fetchMealConnectId(String childId) =>
+      _idCache.putIfAbsent(
+        childId,
+        () => FirebaseFirestore.instance
+            .collection('children')
+            .doc(childId)
+            .get()
+            .then((s) => (s.data()?['mealConnectId'] as String?) ?? ''),
+      );
+
+  Widget _mealConnectIdLabel(String childId) {
+    if (childId.isEmpty) return const SizedBox.shrink();
+    return FutureBuilder<String>(
+      future: _fetchMealConnectId(childId),
+      builder: (_, snap) {
+        final id = snap.data ?? '';
+        if (id.isEmpty) return const SizedBox.shrink();
+        return Text('ID: $id',
+            style: const TextStyle(
+                fontSize: 12, color: Color(0xFF9B9B9B)));
+      },
+    );
+  }
+
   Widget _buildEmptyState() {
     return Padding(
       padding: const EdgeInsets.only(top: 40),
@@ -673,8 +676,7 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
         items.first.data() as Map<String, dynamic>;
     final childName =
         firstData['childName'] as String? ?? 'Student';
-    final childRollNo =
-        firstData['childRollNo'] as String? ?? '';
+    final childId = firstData['childId'] as String? ?? '';
     final isDelivering = _delivering.contains(orderId);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -727,11 +729,7 @@ class _ActiveOrdersPageState extends State<ActiveOrdersPage> {
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
                               color: Color(0xFF1A1A1A))),
-                      if (childRollNo.isNotEmpty)
-                        Text('ID: $childRollNo',
-                            style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF9B9B9B))),
+                      _mealConnectIdLabel(childId),
                     ],
                   ),
                 ),

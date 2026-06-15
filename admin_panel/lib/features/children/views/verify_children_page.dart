@@ -150,7 +150,14 @@ class VerifyChildrenPage extends GetView<ChildrenController> {
                 ),
                 const SizedBox(height: 2),
                 _infoRow(Icons.school_outlined, child.schoolName),
-                _infoRow(Icons.badge_outlined, 'Roll No: ${child.classRollNo}'),
+                _infoRow(
+                  Icons.class_outlined,
+                  [
+                    if (child.classLevel.isNotEmpty) 'Class ${child.classLevel}',
+                    if (child.section.isNotEmpty) child.section,
+                    if (child.rollNumber.isNotEmpty) 'Roll ${child.rollNumber}',
+                  ].join(' · '),
+                ),
                 _infoRow(
                   Icons.person_outline,
                   'Parent: ${child.parentName.isNotEmpty ? child.parentName : child.parentEmail}',

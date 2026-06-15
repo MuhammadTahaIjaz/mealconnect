@@ -3,7 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NotificationsPage extends StatelessWidget {
-  const NotificationsPage({super.key});
+  final void Function(int tab)? onNavigateToTab;
+  const NotificationsPage({super.key, this.onNavigateToTab});
 
   static const _pink = Color(0xFFFF3366);
 
@@ -39,6 +40,9 @@ class NotificationsPage extends StatelessWidget {
                 stream: FirebaseFirestore.instance
                     .collection('notifications')
                     .where('userId', isEqualTo: uid)
+                    .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(
+                      DateTime(DateTime.now().year, DateTime.now().month, 1),
+                    ))
                     .orderBy('timestamp', descending: true)
                     .snapshots(),
                 builder: (context, snapshot) {
@@ -52,8 +56,13 @@ class NotificationsPage extends StatelessWidget {
                     );
                   }
 
-                  if (!snapshot.hasData ||
-                      snapshot.data!.docs.isEmpty) {
+                  final docs = ((snapshot.data?.docs) ?? [])
+                      .where((doc) =>
+                          (doc.data() as Map<String, dynamic>)['isRead'] != true)
+                      .take(50)
+                      .toList();
+
+                  if (docs.isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -73,7 +82,6 @@ class NotificationsPage extends StatelessWidget {
                     );
                   }
 
-                  final docs = snapshot.data!.docs;
                   return ListView.separated(
                     padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
                     itemCount: docs.length,
@@ -99,10 +107,19 @@ class NotificationsPage extends StatelessWidget {
       String docId, Map<String, dynamic> data) {
     final title = data['title'] as String? ?? '';
     final message = data['message'] as String? ?? '';
+    final type = data['type'] as String? ?? '';
     final isRead = data['isRead'] as bool? ?? true;
 
+    final bool hasDestination =
+        type == 'child_approved' || type == 'child_rejected';
+
     return GestureDetector(
-      onTap: isRead ? null : () => _markAsRead(docId),
+      onTap: (!isRead || hasDestination)
+          ? () {
+              if (!isRead) _markAsRead(docId);
+              if (hasDestination) onNavigateToTab?.call(2);
+            }
+          : null,
       child: Container(
         color: isRead ? Colors.white : const Color(0xFFFFF8F8),
         padding:

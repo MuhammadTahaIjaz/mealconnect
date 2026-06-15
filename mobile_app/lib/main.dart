@@ -16,6 +16,7 @@ import 'parent/screens/add_child_screen.dart' as parent_add_child;
 import 'parent/screens/pending_approval_screen.dart' as parent_pending;
 import 'parent/screens/home_shell.dart' as parent_home;
 import 'parent/screens/edit_child_screen.dart' as parent_edit_child;
+import 'parent/screens/select_cafeteria_page.dart' as parent_cafeteria;
 import 'parent/screens/menu_page.dart' as parent_menu;
 import 'parent/screens/checkout_screen.dart' as parent_checkout;
 
@@ -67,6 +68,8 @@ class MealConnectApp extends StatelessWidget {
         '/parent-home': (context) => const parent_home.HomeShell(),
         '/parent-edit-child': (context) =>
             const parent_edit_child.EditChildScreen(),
+        '/parent-cafeteria': (context) =>
+            const parent_cafeteria.SelectCafeteriaPage(),
         '/parent-menu': (context) => const parent_menu.MenuPage(),
         '/parent-checkout': (context) => const parent_checkout.CheckoutScreen(),
 

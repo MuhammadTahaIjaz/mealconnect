@@ -112,7 +112,11 @@ class CustomSidebar extends StatelessWidget {
 
           const Divider(height: 1, color: AppColors.divider),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: _ChangePasswordButton(auth: auth),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             child: _LogoutButton(onTap: auth.logout),
           ),
         ],
@@ -202,6 +206,228 @@ class _SidebarItemState extends State<_SidebarItem> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChangePasswordButton extends StatefulWidget {
+  final AuthController auth;
+  const _ChangePasswordButton({required this.auth});
+
+  @override
+  State<_ChangePasswordButton> createState() => _ChangePasswordButtonState();
+}
+
+class _ChangePasswordButtonState extends State<_ChangePasswordButton> {
+  bool _hovered = false;
+
+  void _showDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => _ChangePasswordDialog(auth: widget.auth),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit:  (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: _showDialog,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            color: _hovered
+                ? AppColors.primaryPink.withValues(alpha: 0.10)
+                : AppColors.primaryPink.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.lock_outline, size: 20, color: AppColors.primaryPink),
+              const SizedBox(width: 12),
+              Text(
+                'Change Password',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  fontWeight: _hovered ? FontWeight.w600 : FontWeight.w500,
+                  color: AppColors.primaryPink,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChangePasswordDialog extends StatefulWidget {
+  final AuthController auth;
+  const _ChangePasswordDialog({required this.auth});
+
+  @override
+  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
+  final _currentCtrl  = TextEditingController();
+  final _newCtrl      = TextEditingController();
+  final _confirmCtrl  = TextEditingController();
+
+  bool _loading = false;
+  String _error = '';
+
+  @override
+  void dispose() {
+    _currentCtrl.dispose();
+    _newCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final current = _currentCtrl.text.trim();
+    final newPass = _newCtrl.text.trim();
+    final confirm = _confirmCtrl.text.trim();
+
+    if (current.isEmpty || newPass.isEmpty || confirm.isEmpty) {
+      setState(() => _error = 'Please fill in all fields.');
+      return;
+    }
+    if (newPass.length < 6) {
+      setState(() => _error = 'New password must be at least 6 characters.');
+      return;
+    }
+    if (newPass != confirm) {
+      setState(() => _error = 'New passwords do not match.');
+      return;
+    }
+
+    setState(() { _loading = true; _error = ''; });
+    final err = await widget.auth.changePassword(
+      currentPassword: current,
+      newPassword: newPass,
+    );
+    if (!mounted) return;
+    if (err != null) {
+      setState(() { _loading = false; _error = err; });
+    } else {
+      Navigator.pop(context);
+      Get.snackbar(
+        'Password Changed',
+        'Please sign in again with your new password.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.success,
+        colorText: Colors.white,
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 4),
+      );
+      await widget.auth.logout();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'Change Password',
+        style: TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textPrimary,
+        ),
+      ),
+      content: SizedBox(
+        width: 340,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _field(_currentCtrl, 'Current Password'),
+            const SizedBox(height: 14),
+            _field(_newCtrl, 'New Password'),
+            const SizedBox(height: 14),
+            _field(_confirmCtrl, 'Confirm New Password'),
+            if (_error.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  color: AppColors.error,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _loading ? null : () => Navigator.pop(context),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(fontFamily: 'Poppins', color: AppColors.textSecondary),
+          ),
+        ),
+        TextButton(
+          onPressed: _loading ? null : _submit,
+          child: _loading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primaryPink,
+                  ),
+                )
+              : const Text(
+                  'Update',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryPink,
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _field(TextEditingController ctrl, String label) {
+    return TextField(
+      controller: ctrl,
+      obscureText: true,
+      style: const TextStyle(fontFamily: 'Poppins', fontSize: 13),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 13,
+          color: AppColors.textSecondary,
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF8F8F8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.divider),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.divider),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.primaryPink, width: 1.5),
         ),
       ),
     );

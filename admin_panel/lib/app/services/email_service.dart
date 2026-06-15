@@ -37,7 +37,7 @@ class EmailService {
         params,
       ).toDart;
     } catch (e) {
-      // Email failure is silent — the in-app notification is already saved.
+      // Email failure is silent; the in-app notification is already saved.
     }
   }
 }

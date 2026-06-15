@@ -173,9 +173,9 @@ class _IncomePageState extends State<IncomePage> {
             : 'Select a day';
       case 'range':
         if (_startDate != null && _endDate != null) {
-          return '${_formatDate(_startDate!)}  —  ${_formatDate(_endDate!)}';
+          return '${_formatDate(_startDate!)} to ${_formatDate(_endDate!)}';
         }
-        if (_startDate != null) return '${_formatDate(_startDate!)}  —  ?';
+        if (_startDate != null) return '${_formatDate(_startDate!)} to ...';
         return 'Select date range';
       default:
         return '';

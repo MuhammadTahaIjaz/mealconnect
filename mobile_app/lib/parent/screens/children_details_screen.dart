@@ -14,6 +14,11 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
   static const _pink = Color(0xFFFF3366);
   static const _orange = Color(0xFFFF8C00);
 
+  static const _classOptions = [
+    'Play Group', 'Nursery', 'Prep',
+    '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
+  ];
+
   final _formKey = GlobalKey<FormState>();
 
   int _childCount = 1;
@@ -21,7 +26,9 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
   String? _errorMessage;
 
   final List<TextEditingController> _nameControllers = [];
-  final List<TextEditingController> _idControllers = [];
+  final List<String?> _classLevels = [];
+  final List<TextEditingController> _sectionControllers = [];
+  final List<TextEditingController> _rollControllers = [];
 
   @override
   void initState() {
@@ -31,7 +38,11 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
 
   @override
   void dispose() {
-    for (final c in [..._nameControllers, ..._idControllers]) {
+    for (final c in [
+      ..._nameControllers,
+      ..._sectionControllers,
+      ..._rollControllers,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -39,14 +50,19 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
 
   void _addControllers() {
     _nameControllers.add(TextEditingController());
-    _idControllers.add(TextEditingController());
+    _classLevels.add(null);
+    _sectionControllers.add(TextEditingController());
+    _rollControllers.add(TextEditingController());
   }
 
   void _removeControllers() {
     _nameControllers.last.dispose();
     _nameControllers.removeLast();
-    _idControllers.last.dispose();
-    _idControllers.removeLast();
+    _classLevels.removeLast();
+    _sectionControllers.last.dispose();
+    _sectionControllers.removeLast();
+    _rollControllers.last.dispose();
+    _rollControllers.removeLast();
   }
 
   void _onCountChange(int delta) {
@@ -69,7 +85,6 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final db = FirebaseFirestore.instance;
 
-      // Auto-fetch school info from parent's registration
       final schoolId = await AuthService.getCurrentParentSchoolId();
       String schoolName = '';
       if (schoolId.isNotEmpty) {
@@ -86,7 +101,9 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
           'schoolId': schoolId,
           'schoolName': schoolName,
           'name': _nameControllers[i].text.trim(),
-          'classRollNo': _idControllers[i].text.trim(),
+          'classLevel': _classLevels[i],
+          'section': _sectionControllers[i].text.trim(),
+          'rollNumber': _rollControllers[i].text.trim(),
           'verificationStatus': 'pending',
           'createdAt': FieldValue.serverTimestamp(),
         });
@@ -102,7 +119,7 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
       await db.collection('notifications').add({
         'userId': adminUid ?? 'admin',
         'title': 'New Child Verification Request',
-        'message': '$childNames — verification required.',
+        'message': '$childNames, verification required.',
         'type': 'new_child_request',
         'isRead': false,
         'timestamp': FieldValue.serverTimestamp(),
@@ -221,7 +238,8 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
             child: Row(
               children: [
                 _stepperBtn('-', () => _onCountChange(-1)),
-                Container(width: 1, height: 28, color: const Color(0xFFEEEEEE)),
+                Container(
+                    width: 1, height: 28, color: const Color(0xFFEEEEEE)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: Text(
@@ -233,7 +251,8 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
                     ),
                   ),
                 ),
-                Container(width: 1, height: 28, color: const Color(0xFFEEEEEE)),
+                Container(
+                    width: 1, height: 28, color: const Color(0xFFEEEEEE)),
                 _stepperBtn('+', () => _onCountChange(1)),
               ],
             ),
@@ -282,27 +301,44 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        _buildShadowField(
+        _buildTextField(
           controller: _nameControllers[index],
-          label: 'Children Name',
+          label: 'Child Name',
           validator: (v) =>
               v == null || v.trim().isEmpty ? 'Name is required' : null,
         ),
         const SizedBox(height: 12),
-        _buildShadowField(
-          controller: _idControllers[index],
-          label: 'Child School ID',
+        _buildDropdown(
+          label: 'Class',
+          value: _classLevels[index],
+          options: _classOptions,
+          onChanged: (v) => setState(() => _classLevels[index] = v),
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          controller: _sectionControllers[index],
+          label: 'Section',
+          hint: 'e.g. A, B, Blue, Green',
           validator: (v) =>
-              v == null || v.trim().isEmpty ? 'School ID is required' : null,
+              v == null || v.trim().isEmpty ? 'Section is required' : null,
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          controller: _rollControllers[index],
+          label: 'Roll Number',
+          validator: (v) =>
+              v == null || v.trim().isEmpty ? 'Roll number is required' : null,
         ),
         const SizedBox(height: 24),
       ],
     );
   }
 
-  Widget _buildShadowField({
+  Widget _buildTextField({
     required TextEditingController controller,
     required String label,
+    String? hint,
+    TextInputType? keyboardType,
     FormFieldValidator<String>? validator,
   }) {
     return Container(
@@ -320,6 +356,7 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
       child: TextFormField(
         controller: controller,
         validator: validator,
+        keyboardType: keyboardType,
         style: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w500,
@@ -327,15 +364,16 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
         ),
         decoration: InputDecoration(
           labelText: label,
+          hintText: hint,
+          hintStyle:
+              const TextStyle(color: Color(0xFFCCCCCC), fontSize: 13),
           labelStyle: const TextStyle(
             color: Color(0xFF9B9B9B),
             fontSize: 13,
             fontWeight: FontWeight.w400,
           ),
-          floatingLabelStyle: const TextStyle(
-            color: Color(0xFF9B9B9B),
-            fontSize: 12,
-          ),
+          floatingLabelStyle:
+              const TextStyle(color: Color(0xFF9B9B9B), fontSize: 12),
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
@@ -362,6 +400,76 @@ class _ChildrenDetailsScreenState extends State<ChildrenDetailsScreen> {
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDropdown({
+    required String label,
+    required String? value,
+    required List<String> options,
+    required void Function(String?) onChanged,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle:
+              const TextStyle(color: Color(0xFF9B9B9B), fontSize: 13),
+          floatingLabelStyle:
+              const TextStyle(color: Color(0xFF9B9B9B), fontSize: 12),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: _pink, width: 1.5),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFE53935)),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                const BorderSide(color: Color(0xFFE53935), width: 1.5),
+          ),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        ),
+        items: options
+            .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+            .toList(),
+        onChanged: onChanged,
+        validator: (v) => v == null ? 'Class is required' : null,
+        borderRadius: BorderRadius.circular(14),
+        dropdownColor: Colors.white,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: Color(0xFF1A1A1A),
+        ),
+        icon: const Icon(Icons.keyboard_arrow_down,
+            color: Color(0xFF9B9B9B)),
       ),
     );
   }

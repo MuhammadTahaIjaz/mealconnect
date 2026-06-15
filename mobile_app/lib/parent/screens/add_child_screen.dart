@@ -14,17 +14,25 @@ class _AddChildScreenState extends State<AddChildScreen> {
   static const _pink = Color(0xFFFF3366);
   static const _orange = Color(0xFFFF8C00);
 
+  static const _classOptions = [
+    'Play Group', 'Nursery', 'Prep',
+    '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
+  ];
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _idController = TextEditingController();
+  final _sectionController = TextEditingController();
+  final _rollController = TextEditingController();
 
+  String? _classLevel;
   bool _isLoading = false;
   String? _errorMessage;
 
   @override
   void dispose() {
     _nameController.dispose();
-    _idController.dispose();
+    _sectionController.dispose();
+    _rollController.dispose();
     super.dispose();
   }
 
@@ -57,17 +65,18 @@ class _AddChildScreenState extends State<AddChildScreen> {
         'parentId': uid,
         'schoolId': schoolId,
         'name': childName,
-        'classRollNo': _idController.text.trim(),
+        'classLevel': _classLevel,
+        'section': _sectionController.text.trim(),
+        'rollNumber': _rollController.text.trim(),
         'schoolName': schoolName,
         'verificationStatus': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // Notify the school's admin of the new child verification request
       await FirebaseFirestore.instance.collection('notifications').add({
         'userId': adminUid ?? 'admin',
         'title': 'New Child Verification Request',
-        'message': '$childName — verification required.',
+        'message': '$childName, verification required.',
         'type': 'new_child_request',
         'isRead': false,
         'timestamp': FieldValue.serverTimestamp(),
@@ -116,7 +125,6 @@ class _AddChildScreenState extends State<AddChildScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 32),
-                      // Avatar
                       Container(
                         width: 72,
                         height: 72,
@@ -132,19 +140,36 @@ class _AddChildScreenState extends State<AddChildScreen> {
                             color: Colors.white, size: 36),
                       ),
                       const SizedBox(height: 28),
-                      _buildField(
+                      _buildTextField(
                         controller: _nameController,
-                        label: 'Children Name',
+                        label: 'Child Name',
                         validator: (v) => v == null || v.trim().isEmpty
                             ? 'Name is required'
                             : null,
                       ),
                       const SizedBox(height: 14),
-                      _buildField(
-                        controller: _idController,
-                        label: 'Child School ID',
+                      _buildDropdown(
+                        label: 'Class',
+                        value: _classLevel,
+                        options: _classOptions,
+                        onChanged: (v) => setState(() => _classLevel = v),
+                      ),
+                      const SizedBox(height: 14),
+                      _buildTextField(
+                        controller: _sectionController,
+                        label: 'Section',
+                        hint: 'e.g. A, B, Blue, Green',
                         validator: (v) => v == null || v.trim().isEmpty
-                            ? 'School ID is required'
+                            ? 'Section is required'
+                            : null,
+                      ),
+                      const SizedBox(height: 14),
+                      _buildTextField(
+                        controller: _rollController,
+                        label: 'Roll Number',
+                        keyboardType: TextInputType.text,
+                        validator: (v) => v == null || v.trim().isEmpty
+                            ? 'Roll number is required'
                             : null,
                       ),
                       if (_errorMessage != null) ...[
@@ -176,9 +201,11 @@ class _AddChildScreenState extends State<AddChildScreen> {
     );
   }
 
-  Widget _buildField({
+  Widget _buildTextField({
     required TextEditingController controller,
     required String label,
+    String? hint,
+    TextInputType? keyboardType,
     FormFieldValidator<String>? validator,
   }) {
     return Container(
@@ -196,6 +223,7 @@ class _AddChildScreenState extends State<AddChildScreen> {
       child: TextFormField(
         controller: controller,
         validator: validator,
+        keyboardType: keyboardType,
         style: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w500,
@@ -203,10 +231,9 @@ class _AddChildScreenState extends State<AddChildScreen> {
         ),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: const TextStyle(
-            color: Color(0xFF9B9B9B),
-            fontSize: 13,
-          ),
+          hintText: hint,
+          hintStyle: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 13),
+          labelStyle: const TextStyle(color: Color(0xFF9B9B9B), fontSize: 13),
           floatingLabelStyle:
               const TextStyle(color: Color(0xFF9B9B9B), fontSize: 12),
           filled: true,
@@ -235,6 +262,75 @@ class _AddChildScreenState extends State<AddChildScreen> {
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDropdown({
+    required String label,
+    required String? value,
+    required List<String> options,
+    required void Function(String?) onChanged,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Color(0xFF9B9B9B), fontSize: 13),
+          floatingLabelStyle:
+              const TextStyle(color: Color(0xFF9B9B9B), fontSize: 12),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: _pink, width: 1.5),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFE53935)),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                const BorderSide(color: Color(0xFFE53935), width: 1.5),
+          ),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        ),
+        items: options
+            .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+            .toList(),
+        onChanged: onChanged,
+        validator: (v) => v == null ? 'Class is required' : null,
+        borderRadius: BorderRadius.circular(14),
+        dropdownColor: Colors.white,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: Color(0xFF1A1A1A),
+        ),
+        icon: const Icon(Icons.keyboard_arrow_down,
+            color: Color(0xFF9B9B9B)),
       ),
     );
   }

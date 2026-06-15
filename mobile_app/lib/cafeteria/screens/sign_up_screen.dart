@@ -219,8 +219,8 @@ class _SignUpScreenState extends State<SignUpScreen>
             _buildField(
               controller: _nameController,
               focusNode: _nameFocus,
-              label: 'Your Full Name',
-              hint: 'Enter your full name',
+              label: 'Owner Name',
+              hint: 'Enter the owner\'s full name',
               icon: Icons.person_outline,
               onSubmitted: (_) =>
                   FocusScope.of(context).requestFocus(_cafeteriaNameFocus),

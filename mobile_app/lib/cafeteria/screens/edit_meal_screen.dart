@@ -17,7 +17,7 @@ class _EditMealScreenState extends State<EditMealScreen> {
 
   static const _days = [
     'Monday', 'Tuesday', 'Wednesday',
-    'Thursday', 'Friday', 'Saturday', 'Sunday',
+    'Thursday', 'Friday', 'Saturday',
   ];
 
   late final String _mealId;
@@ -61,6 +61,7 @@ class _EditMealScreenState extends State<EditMealScreen> {
     } else if (av is String && av.isNotEmpty) {
       _selectedDays.add(av);
     }
+    _selectedDays.remove('Sunday');
     if (_selectedDays.isEmpty) _selectedDays.add('Monday');
   }
 
@@ -228,8 +229,12 @@ class _EditMealScreenState extends State<EditMealScreen> {
                           if (v == null || v.trim().isEmpty) {
                             return 'Price is required';
                           }
-                          if (double.tryParse(v.trim()) == null) {
+                          final parsed = double.tryParse(v.trim());
+                          if (parsed == null) {
                             return 'Enter a valid number';
+                          }
+                          if (parsed > 100000) {
+                            return 'Price cannot exceed Rs. 100,000';
                           }
                           return null;
                         },

@@ -6,7 +6,9 @@ import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  const ProfilePage({super.key, this.onBeforeSignOut});
+
+  final VoidCallback? onBeforeSignOut;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -17,11 +19,13 @@ class _ProfilePageState extends State<ProfilePage> {
   static const _orange = Color(0xFFFF8C00);
 
   final _nameController = TextEditingController();
+  final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _nameFormKey = GlobalKey<FormState>();
   final _passwordFormKey = GlobalKey<FormState>();
 
+  bool _obscureCurrent = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
   bool _savingName = false;
@@ -43,6 +47,7 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -103,40 +108,124 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  void _confirmDeleteAccount() {
-    showDialog(
+  Future<void> _confirmDeleteAccount() async {
+    final passwordController = TextEditingController();
+    bool obscure = true;
+    String? dialogError;
+    bool dialogLoading = false;
+
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Delete Account',
-          style: TextStyle(
-              fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
-        ),
-        content: const Text(
-          'This will permanently delete your account, all your children\'s records, and your saved payment method. This cannot be undone.',
-          style: TextStyle(fontSize: 13, color: Color(0xFF9B9B9B)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('CANCEL',
-                style: TextStyle(color: Color(0xFF9B9B9B))),
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'Delete Account',
+            style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1A1A1A)),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteAccount();
-            },
-            child: const Text('DELETE',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This will permanently delete your account, all your children\'s records, and your saved payment method. This cannot be undone.',
                 style: TextStyle(
-                    color: Color(0xFFE53935),
-                    fontWeight: FontWeight.w700)),
+                    fontSize: 13,
+                    color: Color(0xFF9B9B9B),
+                    height: 1.5),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: obscure,
+                decoration: InputDecoration(
+                  labelText: 'Enter your password to confirm',
+                  labelStyle: const TextStyle(
+                      fontSize: 13, color: Color(0xFF9B9B9B)),
+                  errorText: dialogError,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscure
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      size: 20,
+                    ),
+                    onPressed: () =>
+                        setDialogState(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: dialogLoading
+                  ? null
+                  : () => Navigator.pop(ctx, false),
+              child: const Text('CANCEL',
+                  style: TextStyle(color: Color(0xFF9B9B9B))),
+            ),
+            TextButton(
+              onPressed: dialogLoading
+                  ? null
+                  : () async {
+                      final pwd = passwordController.text;
+                      if (pwd.isEmpty) {
+                        setDialogState(() =>
+                            dialogError = 'Password is required');
+                        return;
+                      }
+                      setDialogState(() {
+                        dialogLoading = true;
+                        dialogError = null;
+                      });
+                      try {
+                        final user =
+                            FirebaseAuth.instance.currentUser!;
+                        final credential =
+                            EmailAuthProvider.credential(
+                          email: user.email!,
+                          password: pwd,
+                        );
+                        await user.reauthenticateWithCredential(
+                            credential);
+                        if (ctx.mounted) Navigator.pop(ctx, true);
+                      } on FirebaseAuthException {
+                        setDialogState(() {
+                          dialogLoading = false;
+                          dialogError = 'Incorrect password.';
+                        });
+                      }
+                    },
+              style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFE53935)),
+              child: dialogLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            Color(0xFFE53935)),
+                      ),
+                    )
+                  : const Text('DELETE',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
       ),
     );
+
+    passwordController.dispose();
+    if (confirmed == true && mounted) _deleteAccount();
   }
 
   Future<void> _deleteAccount() async {
@@ -173,6 +262,7 @@ class _ProfilePageState extends State<ProfilePage> {
       await batch.commit();
 
       // 4. Delete Firebase Auth account
+      widget.onBeforeSignOut?.call();
       await FirebaseAuth.instance.currentUser!.delete();
 
       if (mounted) {
@@ -196,8 +286,14 @@ class _ProfilePageState extends State<ProfilePage> {
     if (!(_passwordFormKey.currentState?.validate() ?? false)) return;
     setState(() => _savingPassword = true);
     try {
-      await FirebaseAuth.instance.currentUser!
-          .updatePassword(_newPasswordController.text);
+      final user = FirebaseAuth.instance.currentUser!;
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: _currentPasswordController.text,
+      );
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(_newPasswordController.text);
+      widget.onBeforeSignOut?.call();
       await AuthService.signOut();
       if (mounted) {
         Navigator.pushNamedAndRemoveUntil(
@@ -205,11 +301,13 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
-        _showSnack(e.code == 'requires-recent-login'
-            ? 'Please sign out and sign back in before changing your password.'
-            : e.code == 'weak-password'
-                ? 'Password must be at least 6 characters.'
-                : 'Failed to change password. Try again.');
+        _showSnack(
+          e.code == 'wrong-password' || e.code == 'invalid-credential'
+              ? 'Current password is incorrect.'
+              : e.code == 'weak-password'
+                  ? 'Password must be at least 6 characters.'
+                  : 'Failed to change password. Try again.',
+        );
       }
     } finally {
       if (mounted) setState(() => _savingPassword = false);
@@ -374,6 +472,16 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _passwordField(
+            controller: _currentPasswordController,
+            label: 'Current Password',
+            obscure: _obscureCurrent,
+            onToggle: () =>
+                setState(() => _obscureCurrent = !_obscureCurrent),
+            validator: (v) =>
+                (v == null || v.isEmpty) ? 'Enter your current password' : null,
+          ),
+          const SizedBox(height: 16),
           _passwordField(
             controller: _newPasswordController,
             label: 'New Password',

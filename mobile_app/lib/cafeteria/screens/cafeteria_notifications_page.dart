@@ -39,6 +39,9 @@ class CafeteriaNotificationsPage extends StatelessWidget {
                 stream: FirebaseFirestore.instance
                     .collection('notifications')
                     .where('userId', isEqualTo: uid)
+                    .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(
+                      DateTime(DateTime.now().year, DateTime.now().month, 1),
+                    ))
                     .orderBy('timestamp', descending: true)
                     .snapshots(),
                 builder: (context, snapshot) {
@@ -52,8 +55,13 @@ class CafeteriaNotificationsPage extends StatelessWidget {
                     );
                   }
 
-                  if (!snapshot.hasData ||
-                      snapshot.data!.docs.isEmpty) {
+                  final docs = ((snapshot.data?.docs) ?? [])
+                      .where((doc) =>
+                          (doc.data() as Map<String, dynamic>)['isRead'] != true)
+                      .take(50)
+                      .toList();
+
+                  if (docs.isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -72,7 +80,6 @@ class CafeteriaNotificationsPage extends StatelessWidget {
                     );
                   }
 
-                  final docs = snapshot.data!.docs;
                   return ListView.separated(
                     padding:
                         const EdgeInsets.fromLTRB(20, 4, 20, 20),

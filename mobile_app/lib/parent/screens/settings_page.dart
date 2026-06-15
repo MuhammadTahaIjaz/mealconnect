@@ -6,7 +6,9 @@ import 'terms_conditions_page.dart';
 import 'spending_page.dart';
 
 class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
+  const SettingsPage({super.key, this.onBeforeSignOut});
+
+  final VoidCallback? onBeforeSignOut;
 
   static const _orange = Color(0xFFF5A623);
 
@@ -33,7 +35,7 @@ class SettingsPage extends StatelessWidget {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => const ProfilePage()),
+                    builder: (_) => ProfilePage(onBeforeSignOut: onBeforeSignOut)),
               ),
             ),
             _buildDivider(),
@@ -67,6 +69,7 @@ class SettingsPage extends StatelessWidget {
             _buildItem(
               label: 'Sign Out',
               onTap: () async {
+                onBeforeSignOut?.call();
                 await AuthService.signOut();
                 if (context.mounted) {
                   Navigator.pushReplacementNamed(

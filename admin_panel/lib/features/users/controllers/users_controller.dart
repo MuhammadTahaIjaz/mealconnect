@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import 'package:http/http.dart' as http;
 import '../../auth/controllers/auth_controller.dart';
+
+const _backendUrl = 'http://72.61.254.215:3000';
 
 class UserRecord {
   final String userId;
@@ -9,8 +14,9 @@ class UserRecord {
   final String email;
   final String role;
   final Timestamp? timestamp;
-  final String? parentName; // children only
-  final String? parentId;   // children only — used to cascade on parent delete
+  final String? parentName;
+  final String? parentId;
+  final String? mealConnectId;
 
   UserRecord({
     required this.userId,
@@ -20,6 +26,7 @@ class UserRecord {
     this.timestamp,
     this.parentName,
     this.parentId,
+    this.mealConnectId,
   });
 }
 
@@ -33,25 +40,34 @@ class UsersController extends GetxController {
   final searchQuery   = ''.obs;
   final deletingIds   = <String>[].obs;
 
-  final roles = ['All', 'parent', 'cafeteria', 'child', 'admin'];
+  final roles = ['All', 'parent', 'cafeteria', 'child'];
+
+  var _nonChildUsers = <UserRecord>[];
+  var _parentNameMap = <String, String>{};
+  StreamSubscription<QuerySnapshot>? _childrenSub;
 
   @override
   void onInit() {
     super.onInit();
-    fetchUsers();
+    _loadData();
     ever(selectedRole, (_) => _applyFilter());
     ever(searchQuery,  (_) => _applyFilter());
   }
 
-  Future<void> fetchUsers() async {
+  @override
+  void onClose() {
+    _childrenSub?.cancel();
+    super.onClose();
+  }
+
+  Future<void> _loadData() async {
     isLoading.value = true;
     try {
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
       final schoolId   = Get.find<AuthController>().schoolId.value;
 
-      // ── Fetch users (parents, cafeterias, admins) ──────────────────────
       final usersSnap = await _db.collection('users').get();
-      final userRecords = usersSnap.docs
+      _nonChildUsers = usersSnap.docs
           .where((doc) => doc.id != currentUid)
           .map((doc) {
             final d = doc.data();
@@ -64,35 +80,40 @@ class UsersController extends GetxController {
             );
           }).toList();
 
-      // Build a parentId → name lookup for children
-      final parentNameMap = {for (final u in userRecords) u.userId: u.name};
+      _parentNameMap = {for (final u in _nonChildUsers) u.userId: u.name};
 
-      // ── Fetch children ──────────────────────────────────────────────────
-      List<UserRecord> childRecords = [];
       if (schoolId.isNotEmpty) {
-        final childrenSnap = await _db
+        _childrenSub?.cancel();
+        _childrenSub = _db
             .collection('children')
             .where('schoolId', isEqualTo: schoolId)
-            .get();
-        childRecords = childrenSnap.docs.map((doc) {
-          final d = doc.data();
-          final pid = d['parentId'] as String? ?? '';
-          return UserRecord(
-            userId:     doc.id,
-            name:       d['name'] ?? '',
-            email:      '',
-            role:       'child',
-            timestamp:  d['createdAt'],
-            parentName: parentNameMap[pid] ?? '',
-            parentId:   pid,
-          );
-        }).toList();
-      }
+            .snapshots()
+            .listen((snap) {
+          final childRecords = snap.docs.map((doc) {
+            final d = doc.data();
+            final pid = d['parentId'] as String? ?? '';
+            return UserRecord(
+              userId:        doc.id,
+              name:          d['name'] ?? '',
+              email:         '',
+              role:          'child',
+              timestamp:     d['createdAt'],
+              parentName:    _parentNameMap[pid] ?? '',
+              parentId:      pid,
+              mealConnectId: d['mealConnectId'] as String?,
+            );
+          }).toList();
 
-      users.value = [...userRecords, ...childRecords];
-      _applyFilter();
+          users.value = [..._nonChildUsers, ...childRecords];
+          _applyFilter();
+          if (isLoading.value) isLoading.value = false;
+        });
+      } else {
+        users.value = [..._nonChildUsers];
+        _applyFilter();
+        isLoading.value = false;
+      }
     } catch (_) {
-    } finally {
       isLoading.value = false;
     }
   }
@@ -119,15 +140,28 @@ class UsersController extends GetxController {
       final batch = _db.batch();
 
       if (user.role == 'child') {
-        // Children exist only in the children collection
         batch.delete(_db.collection('children').doc(user.userId));
+        // Stream listener removes it from the list automatically
       } else {
-        // All other roles have a users doc
         batch.delete(_db.collection('users').doc(user.userId));
 
         if (user.role == 'parent') {
+          // Fetch stripeCustomerId before deleting the Firestore doc
+          final parentDoc = await _db.collection('parents').doc(user.userId).get();
+          final customerId = parentDoc.data()?['stripeCustomerId'] as String?;
+
+          // Delete Stripe customer + Firebase Auth user via backend
+          try {
+            await http.post(
+              Uri.parse('$_backendUrl/delete-parent'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'uid': user.userId, 'customerId': customerId}),
+            );
+          } catch (_) {
+            // Backend unavailable — continue with Firestore cleanup
+          }
+
           batch.delete(_db.collection('parents').doc(user.userId));
-          // Cascade: delete all children of this parent
           final childrenSnap = await _db
               .collection('children')
               .where('parentId', isEqualTo: user.userId)
@@ -135,17 +169,40 @@ class UsersController extends GetxController {
           for (final doc in childrenSnap.docs) {
             batch.delete(doc.reference);
           }
-          // Remove those children from local list too
-          users.removeWhere(
-              (u) => u.role == 'child' && u.parentId == user.userId);
         } else if (user.role == 'cafeteria') {
+          // Fetch stripeAccountId before deleting the Firestore doc
+          final cafDoc = await _db.collection('cafeterias').doc(user.userId).get();
+          final stripeAccountId = cafDoc.data()?['stripeAccountId'] as String?;
+
+          // Delete Stripe Express account + Firebase Auth user via backend
+          try {
+            await http.post(
+              Uri.parse('$_backendUrl/delete-cafeteria'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'uid': user.userId, 'stripeAccountId': stripeAccountId}),
+            );
+          } catch (_) {
+            // Backend unavailable — continue with Firestore cleanup
+          }
+
           batch.delete(_db.collection('cafeterias').doc(user.userId));
+
+          // Delete all meals belonging to this cafeteria
+          final mealsSnap = await _db
+              .collection('meals')
+              .where('cafeteriaId', isEqualTo: user.userId)
+              .get();
+          for (final doc in mealsSnap.docs) {
+            batch.delete(doc.reference);
+          }
         }
+
+        _nonChildUsers.removeWhere((u) => u.userId == user.userId);
+        users.removeWhere((u) => u.userId == user.userId);
+        _applyFilter();
       }
 
       await batch.commit();
-      users.removeWhere((u) => u.userId == user.userId);
-      _applyFilter();
     } catch (_) {
     } finally {
       deletingIds.remove(user.userId);

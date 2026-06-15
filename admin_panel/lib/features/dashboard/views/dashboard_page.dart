@@ -363,12 +363,6 @@ class DashboardPage extends GetView<DashboardController> {
               onTap: () =>
                   Get.find<HomeController>().selectIndex(3),
             ),
-            _buildActionButton(
-              label: 'Refresh Stats',
-              icon: Icons.refresh,
-              enabled: true,
-              onTap: controller.fetchStats,
-            ),
           ],
         ),
       ],

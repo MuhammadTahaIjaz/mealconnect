@@ -25,7 +25,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String? _error;
 
   double _walletBalance = 0;
-  String _childRollNo = '';
+  String _childMealConnectId = '';
 
   @override
   void didChangeDependencies() {
@@ -38,7 +38,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _cart = (args['cart'] as List).cast<Map<String, dynamic>>();
     _childId = args['childId'] as String;
     _childName = args['childName'] as String;
-    _childRollNo = (args['childRollNo'] as String?) ?? '';
+    _childMealConnectId = (args['childMealConnectId'] as String?) ?? '';
     _total = _cart.fold<double>(0, (acc, item) {
       final days = (item['days'] as List<dynamic>?) ?? [];
       return acc + days.fold<double>(0, (s, d) {
@@ -98,7 +98,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             'orderId': orderId,
             'childId': _childId,
             'childName': _childName,
-            'childRollNo': _childRollNo,
+            'childMealConnectId': _childMealConnectId,
             'mealId': item['mealId'],
             'parentId': uid,
             'cafeteriaId': item['cafeteriaId'] ?? '',

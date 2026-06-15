@@ -18,7 +18,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
 
   static const _days = [
     'Monday', 'Tuesday', 'Wednesday',
-    'Thursday', 'Friday', 'Saturday', 'Sunday',
+    'Thursday', 'Friday', 'Saturday',
   ];
 
   final _formKey = GlobalKey<FormState>();
@@ -198,8 +198,12 @@ class _AddMealScreenState extends State<AddMealScreen> {
                           if (v == null || v.trim().isEmpty) {
                             return 'Price is required';
                           }
-                          if (double.tryParse(v.trim()) == null) {
+                          final parsed = double.tryParse(v.trim());
+                          if (parsed == null) {
                             return 'Enter a valid number';
+                          }
+                          if (parsed > 100000) {
+                            return 'Price cannot exceed Rs. 100,000';
                           }
                           return null;
                         },

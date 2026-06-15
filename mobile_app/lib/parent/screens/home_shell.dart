@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'home_page.dart';
 import 'wallet_page.dart';
 import 'history_page.dart';
@@ -14,14 +16,63 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _currentIndex = 2;
+  late final List<Widget> _pages;
+  StreamSubscription<User?>? _authSub;
+  bool _authInitialSkipped = false;
 
-  final List<Widget> _pages = const [
-    WalletPage(),
-    HistoryPage(),
-    HomePage(),
-    NotificationsPage(),
-    SettingsPage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const WalletPage(),
+      const HistoryPage(),
+      const HomePage(),
+      NotificationsPage(onNavigateToTab: (tab) => setState(() => _currentIndex = tab)),
+      SettingsPage(onBeforeSignOut: () { _authSub?.cancel(); _authSub = null; }),
+    ];
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (!_authInitialSkipped) { _authInitialSkipped = true; return; }
+      if (user == null && mounted) _showAccountDeletedDialog();
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
+  void _showAccountDeletedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Account Removed',
+          style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Your account no longer exists. Please contact your school admin for more information.',
+          style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF9B9B9B)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext, rootNavigator: true)
+                .pushNamedAndRemoveUntil('/type-selection', (_) => false),
+            child: const Text(
+              'OK',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                color: Color(0xFFFF3366),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

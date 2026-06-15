@@ -10,18 +10,11 @@ class AuthController extends GetxController {
   final isLoading = false.obs;
   final errorMessage = ''.obs;
 
-  // Set after login/signup — used by all controllers to filter data.
+  // Set after login/signup, used by all controllers to filter data.
   final schoolId = ''.obs;
   final schoolDisplayName = ''.obs;
 
-  @override
-  void onInit() {
-    super.onInit();
-    // Restore school info if admin is already signed in (e.g. page refresh).
-    _loadSchoolInfo();
-  }
-
-  Future<void> _loadSchoolInfo() async {
+  Future<void> loadSchoolInfo() async {
     final user = _auth.currentUser;
     if (user == null) return;
     try {
@@ -46,7 +39,7 @@ class AuthController extends GetxController {
     errorMessage.value = '';
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
-      await _loadSchoolInfo();
+      await loadSchoolInfo();
       Get.offAllNamed(AppRoutes.HOME);
     } on FirebaseAuthException catch (e) {
       errorMessage.value = _mapAuthError(e.code);
@@ -112,6 +105,34 @@ class AuthController extends GetxController {
       errorMessage.value = _mapAuthError(e.code);
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<String?> sendPasswordReset(String email) async {
+    if (email.isEmpty) return 'Please enter your email address first.';
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+      return null;
+    } on FirebaseAuthException catch (e) {
+      return _mapAuthError(e.code);
+    }
+  }
+
+  Future<String?> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final user = _auth.currentUser!;
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+      return null;
+    } on FirebaseAuthException catch (e) {
+      return _mapAuthError(e.code);
     }
   }
 

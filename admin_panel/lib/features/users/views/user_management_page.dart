@@ -8,7 +8,8 @@ class UserManagementPage extends GetView<UsersController> {
 
   // ── Column flex weights ───────────────────────────────────────────────────
   static const _flexName   = 3;
-  static const _flexEmail  = 4;
+  static const _flexEmail  = 3;
+  static const _flexId     = 2;
   static const _flexRole   = 2;
   static const _actionW    = 80.0;
 
@@ -59,11 +60,6 @@ class UserManagementPage extends GetView<UsersController> {
                   ),
                 )),
           ],
-        ),
-        IconButton(
-          onPressed: controller.fetchUsers,
-          icon: const Icon(Icons.refresh, color: AppColors.primaryPink),
-          tooltip: 'Refresh',
         ),
       ],
     );
@@ -213,9 +209,10 @@ class UserManagementPage extends GetView<UsersController> {
           const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       child: Row(
         children: [
-          Expanded(flex: _flexName,  child: const Text('NAME',          style: style)),
+          Expanded(flex: _flexName,  child: const Text('NAME',           style: style)),
           Expanded(flex: _flexEmail, child: const Text('EMAIL / PARENT', style: style)),
-          Expanded(flex: _flexRole,  child: const Text('ROLE',   style: style)),
+          Expanded(flex: _flexId,    child: const Text('ID / CHILD',     style: style)),
+          Expanded(flex: _flexRole,  child: const Text('ROLE',           style: style)),
           SizedBox(width: _actionW,  child: const Text('ACTION', style: style,
               textAlign: TextAlign.center)),
         ],
@@ -304,10 +301,48 @@ class UserManagementPage extends GetView<UsersController> {
                       overflow: TextOverflow.ellipsis,
                     ),
             ),
+            // MealConnect ID (children only)
+            Expanded(
+              flex: _flexId,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: user.role == 'child' &&
+                        (user.mealConnectId?.isNotEmpty == true)
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          gradient: AppColors.primaryGradient,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          user.mealConnectId!,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      )
+                    : const Text(
+                        '—',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+              ),
+            ),
             // Role badge
             Expanded(
               flex: _flexRole,
-              child: _buildRoleBadge(user.role),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _buildRoleBadge(user.role),
+              ),
             ),
             // Delete button
             SizedBox(
@@ -421,7 +456,7 @@ class UserManagementPage extends GetView<UsersController> {
     }
     return Container(
       padding:
-          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),

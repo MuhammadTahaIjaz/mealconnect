@@ -64,11 +64,6 @@ class NotificationsPage extends GetView<NotificationsController> {
                 ),
               ),
             ),
-            IconButton(
-              onPressed: controller.fetchNotifications,
-              icon: const Icon(Icons.refresh, color: AppColors.primaryPink),
-              tooltip: 'Refresh',
-            ),
           ],
         ),
       ],
@@ -112,11 +107,9 @@ class NotificationsPage extends GetView<NotificationsController> {
 
   Widget _buildNotificationCard(NotificationRecord n) {
     return MouseRegion(
-      cursor: n.isRead
-          ? SystemMouseCursors.basic
-          : SystemMouseCursors.click,
+      cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: n.isRead ? null : () => controller.markAsRead(n.id),
+        onTap: () => controller.handleTap(n),
         child: _NotificationCardContent(n: n),
       ),
     );

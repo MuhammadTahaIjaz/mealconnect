@@ -7,18 +7,18 @@ class DashboardController extends GetxController {
   final _db   = FirebaseFirestore.instance;
   final _subs = <StreamSubscription>[];
 
-  // Pending counts — real-time
+  // Pending counts, real-time
   final pendingParentsCount    = 0.obs;
   final pendingCafeteriasCount = 0.obs;
   final pendingChildrenCount   = 0.obs;
 
-  // Approved/active totals — real-time
+  // Approved/active totals, real-time
   // Only approved users count as "total users"
   final totalParentsCount    = 0.obs;
   final totalCafeteriasCount = 0.obs;
   final totalChildrenCount   = 0.obs;
 
-  // Deliveries — one-time fetch (complex aggregation)
+  // Deliveries, one-time fetch (complex aggregation)
   final deliveriesThisMonth  = 0.obs;
   final isLoadingDeliveries  = true.obs;
 
