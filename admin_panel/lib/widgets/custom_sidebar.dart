@@ -11,13 +11,41 @@ class CustomSidebar extends StatelessWidget {
   static const _width = 240.0;
 
   static const _items = [
-    {'icon': Icons.dashboard_outlined,        'activeIcon': Icons.dashboard,        'label': 'Dashboard'},
-    {'icon': Icons.people_outline,            'activeIcon': Icons.people,            'label': 'Verify Parents'},
-    {'icon': Icons.store_outlined,            'activeIcon': Icons.store,             'label': 'Verify Cafeterias'},
-    {'icon': Icons.child_care_outlined,       'activeIcon': Icons.child_care,        'label': 'Verify Children'},
-    {'icon': Icons.manage_accounts_outlined,  'activeIcon': Icons.manage_accounts,   'label': 'User Management'},
-    {'icon': Icons.bar_chart_outlined,        'activeIcon': Icons.bar_chart,         'label': 'Delivery Reports'},
-    {'icon': Icons.notifications_outlined,    'activeIcon': Icons.notifications,     'label': 'Notifications'},
+    {
+      'icon': Icons.dashboard_outlined,
+      'activeIcon': Icons.dashboard,
+      'label': 'Dashboard',
+    },
+    {
+      'icon': Icons.people_outline,
+      'activeIcon': Icons.people,
+      'label': 'Verify Parents',
+    },
+    {
+      'icon': Icons.store_outlined,
+      'activeIcon': Icons.store,
+      'label': 'Verify Cafeterias',
+    },
+    {
+      'icon': Icons.child_care_outlined,
+      'activeIcon': Icons.child_care,
+      'label': 'Verify Children',
+    },
+    {
+      'icon': Icons.manage_accounts_outlined,
+      'activeIcon': Icons.manage_accounts,
+      'label': 'User Management',
+    },
+    {
+      'icon': Icons.bar_chart_outlined,
+      'activeIcon': Icons.bar_chart,
+      'label': 'Delivery Reports',
+    },
+    {
+      'icon': Icons.notifications_outlined,
+      'activeIcon': Icons.notifications,
+      'label': 'Notifications',
+    },
   ];
 
   @override
@@ -35,7 +63,10 @@ class CustomSidebar extends StatelessWidget {
             child: GestureDetector(
               onTap: () => Get.find<HomeController>().selectIndex(0),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 32,
+                  horizontal: 20,
+                ),
                 child: Row(
                   children: [
                     ClipRRect(
@@ -69,44 +100,41 @@ class CustomSidebar extends StatelessWidget {
           Expanded(
             child: SingleChildScrollView(
               child: Obx(() {
-              // Safely read pending counts from DashboardController
-              DashboardController? dash;
-              try {
-                dash = Get.find<DashboardController>();
-              } catch (_) {}
+                // Safely read pending counts from DashboardController
+                DashboardController? dash;
+                try {
+                  dash = Get.find<DashboardController>();
+                } catch (_) {}
 
-              return Column(
-                children: List.generate(_items.length, (i) {
-                  final item = _items[i];
-                  final isActive = home.selectedIndex.value == i;
+                return Column(
+                  children: List.generate(_items.length, (i) {
+                    final item = _items[i];
+                    final isActive = home.selectedIndex.value == i;
 
-                  // Verify items (1=Parents, 2=Cafeterias, 3=Children)
-                  // are disabled when no pending requests exist
-                  bool isDisabled = false;
-                  if (dash != null) {
-                    if (i == 1) {
-                      isDisabled =
-                          dash.pendingParentsCount.value == 0;
-                    } else if (i == 2) {
-                      isDisabled =
-                          dash.pendingCafeteriasCount.value == 0;
-                    } else if (i == 3) {
-                      isDisabled =
-                          dash.pendingChildrenCount.value == 0;
+                    // Verify items (1=Parents, 2=Cafeterias, 3=Children)
+                    // are disabled when no pending requests exist
+                    bool isDisabled = false;
+                    if (dash != null) {
+                      if (i == 1) {
+                        isDisabled = dash.pendingParentsCount.value == 0;
+                      } else if (i == 2) {
+                        isDisabled = dash.pendingCafeteriasCount.value == 0;
+                      } else if (i == 3) {
+                        isDisabled = dash.pendingChildrenCount.value == 0;
+                      }
                     }
-                  }
 
-                  return _SidebarItem(
-                    icon: item['icon'] as IconData,
-                    activeIcon: item['activeIcon'] as IconData,
-                    label: item['label'] as String,
-                    isActive: isActive,
-                    isDisabled: isDisabled,
-                    onTap: () => home.selectIndex(i),
-                  );
-                }),
-              );
-            }),
+                    return _SidebarItem(
+                      icon: item['icon'] as IconData,
+                      activeIcon: item['activeIcon'] as IconData,
+                      label: item['label'] as String,
+                      isActive: isActive,
+                      isDisabled: isDisabled,
+                      onTap: () => home.selectIndex(i),
+                    );
+                  }),
+                );
+              }),
             ),
           ),
 
@@ -161,14 +189,12 @@ class _SidebarItemState extends State<_SidebarItem> {
     final iconColor = widget.isActive
         ? Colors.white
         : (_hovered && !disabled)
-            ? AppColors.primaryPink
-            : AppColors.textSecondary;
+        ? AppColors.primaryPink
+        : AppColors.textSecondary;
     final textColor = iconColor;
 
     return MouseRegion(
-      cursor: disabled
-          ? SystemMouseCursors.basic
-          : SystemMouseCursors.click,
+      cursor: disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
@@ -182,8 +208,8 @@ class _SidebarItemState extends State<_SidebarItem> {
             color: widget.isActive
                 ? null
                 : _hovered
-                    ? hoverBg
-                    : Colors.transparent,
+                ? hoverBg
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
@@ -199,8 +225,7 @@ class _SidebarItemState extends State<_SidebarItem> {
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 13,
-                  fontWeight:
-                      showHighlight ? FontWeight.w600 : FontWeight.w400,
+                  fontWeight: showHighlight ? FontWeight.w600 : FontWeight.w400,
                   color: textColor,
                 ),
               ),
@@ -235,7 +260,7 @@ class _ChangePasswordButtonState extends State<_ChangePasswordButton> {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
-      onExit:  (_) => setState(() => _hovered = false),
+      onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: _showDialog,
         child: AnimatedContainer(
@@ -277,9 +302,9 @@ class _ChangePasswordDialog extends StatefulWidget {
 }
 
 class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
-  final _currentCtrl  = TextEditingController();
-  final _newCtrl      = TextEditingController();
-  final _confirmCtrl  = TextEditingController();
+  final _currentCtrl = TextEditingController();
+  final _newCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
 
   bool _loading = false;
   String _error = '';
@@ -310,14 +335,20 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
       return;
     }
 
-    setState(() { _loading = true; _error = ''; });
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
     final err = await widget.auth.changePassword(
       currentPassword: current,
       newPassword: newPass,
     );
     if (!mounted) return;
     if (err != null) {
-      setState(() { _loading = false; _error = err; });
+      setState(() {
+        _loading = false;
+        _error = err;
+      });
     } else {
       Navigator.pop(context);
       Get.snackbar(
@@ -375,7 +406,10 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
           onPressed: _loading ? null : () => Navigator.pop(context),
           child: const Text(
             'Cancel',
-            style: TextStyle(fontFamily: 'Poppins', color: AppColors.textSecondary),
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
         TextButton(
@@ -416,7 +450,10 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
         ),
         filled: true,
         fillColor: const Color(0xFFF8F8F8),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.divider),
@@ -427,7 +464,10 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.primaryPink, width: 1.5),
+          borderSide: const BorderSide(
+            color: AppColors.primaryPink,
+            width: 1.5,
+          ),
         ),
       ),
     );
@@ -471,8 +511,7 @@ class _LogoutButtonState extends State<_LogoutButton> {
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 13,
-                  fontWeight:
-                      _hovered ? FontWeight.w600 : FontWeight.w500,
+                  fontWeight: _hovered ? FontWeight.w600 : FontWeight.w500,
                   color: AppColors.error,
                 ),
               ),
