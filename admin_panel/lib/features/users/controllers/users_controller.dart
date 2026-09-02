@@ -158,7 +158,7 @@ class UsersController extends GetxController {
               body: jsonEncode({'uid': user.userId, 'customerId': customerId}),
             );
           } catch (_) {
-            // Backend unavailable — continue with Firestore cleanup
+            // Backend unavailable, continue with Firestore cleanup
           }
 
           batch.delete(_db.collection('parents').doc(user.userId));
@@ -182,7 +182,7 @@ class UsersController extends GetxController {
               body: jsonEncode({'uid': user.userId, 'stripeAccountId': stripeAccountId}),
             );
           } catch (_) {
-            // Backend unavailable — continue with Firestore cleanup
+            // Backend unavailable, continue with Firestore cleanup
           }
 
           batch.delete(_db.collection('cafeterias').doc(user.userId));

@@ -80,7 +80,7 @@ app.post('/create-payment-intent', async (req, res) => {
   }
 });
 
-// Delete a Stripe customer — call this before deleting a parent account
+// Delete a Stripe customer. Call this before deleting a parent account
 app.post('/delete-customer', async (req, res) => {
   try {
     const { customerId } = req.body;
@@ -163,14 +163,14 @@ app.post('/delete-parent', async (req, res) => {
     try {
       await stripe.customers.del(customerId);
     } catch (_) {
-      // Already deleted or never created — continue
+      // Already deleted or never created, continue
     }
   }
 
   try {
     await admin.auth().deleteUser(uid);
   } catch (_) {
-    // User may already be deleted — continue
+    // User may already be deleted, continue
   }
 
   res.json({ success: true });
@@ -186,14 +186,14 @@ app.post('/delete-cafeteria', async (req, res) => {
     try {
       await stripe.accounts.del(stripeAccountId);
     } catch (_) {
-      // Already deleted or never fully created — continue
+      // Already deleted or never fully created, continue
     }
   }
 
   try {
     await admin.auth().deleteUser(uid);
   } catch (_) {
-    // User may already be deleted — continue
+    // User may already be deleted, continue
   }
 
   res.json({ success: true });

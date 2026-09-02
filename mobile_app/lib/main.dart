@@ -52,11 +52,11 @@ class MealConnectApp extends StatelessWidget {
       ),
       initialRoute: '/splash',
       routes: {
-        // ── Shared ────────────────────────────────────────────────────────
+        // Shared
         '/splash': (context) => const SplashScreen(),
         '/type-selection': (context) => const TypeSelectionScreen(),
 
-        // ── Parent ────────────────────────────────────────────────────────
+        // Parent
         '/parent-signin': (context) => const parent_sign_in.SignInScreen(),
         '/parent-signup': (context) => const parent_sign_up.SignUpScreen(),
         '/parent-children-details': (context) =>
@@ -73,7 +73,7 @@ class MealConnectApp extends StatelessWidget {
         '/parent-menu': (context) => const parent_menu.MenuPage(),
         '/parent-checkout': (context) => const parent_checkout.CheckoutScreen(),
 
-        // ── Cafeteria ─────────────────────────────────────────────────────
+        // Cafeteria
         '/cafeteria-signin': (context) =>
             const cafeteria_sign_in.SignInScreen(),
         '/cafeteria-signup': (context) =>

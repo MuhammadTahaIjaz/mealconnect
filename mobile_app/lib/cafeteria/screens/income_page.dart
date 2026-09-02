@@ -27,7 +27,7 @@ class _IncomePageState extends State<IncomePage> {
   DateTime get _minDate =>
       _today.subtract(const Duration(days: 30));
 
-  // ── Date pickers ─────────────────────────────────────────────────────────
+  // Date pickers
 
   Future<void> _pickDay() async {
     final picked = await showDatePicker(
@@ -109,7 +109,7 @@ class _IncomePageState extends State<IncomePage> {
     );
   }
 
-  // ── Filter logic ──────────────────────────────────────────────────────────
+  // Filter logic
 
   bool _matchesFilter(Map<String, dynamic> data) {
     final ts = data['deliveryDate'] as Timestamp?;
@@ -139,7 +139,7 @@ class _IncomePageState extends State<IncomePage> {
     return false;
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // Helpers
 
   Map<String, List<QueryDocumentSnapshot>> _groupByOrder(
       List<QueryDocumentSnapshot> docs) {
@@ -275,7 +275,7 @@ class _IncomePageState extends State<IncomePage> {
     );
   }
 
-  // ── Filter section ────────────────────────────────────────────────────────
+  // Filter section
 
   Widget _buildFilterSection() {
     return Column(
@@ -429,7 +429,7 @@ class _IncomePageState extends State<IncomePage> {
     );
   }
 
-  // ── Summary card ──────────────────────────────────────────────────────────
+  // Summary card
 
   Widget _buildSummaryCard(double total, int orders) {
     return Container(
@@ -482,7 +482,7 @@ class _IncomePageState extends State<IncomePage> {
     );
   }
 
-  // ── Empty / Prompt states ─────────────────────────────────────────────────
+  // Empty / Prompt states
 
   Widget _buildPickPrompt() {
     return Padding(
@@ -528,7 +528,7 @@ class _IncomePageState extends State<IncomePage> {
     );
   }
 
-  // ── Order card ────────────────────────────────────────────────────────────
+  // Order card
 
   Widget _buildOrderCard(List<QueryDocumentSnapshot> items) {
     final first = items.first.data() as Map<String, dynamic>;

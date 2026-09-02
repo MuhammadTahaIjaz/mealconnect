@@ -27,7 +27,7 @@ class _SpendingPageState extends State<SpendingPage> {
   DateTime get _minDate =>
       _today.subtract(const Duration(days: 30));
 
-  // ── Date pickers ──────────────────────────────────────────────────────────
+  // Date pickers
 
   Future<void> _pickDay() async {
     final picked = await showDatePicker(
@@ -105,7 +105,7 @@ class _SpendingPageState extends State<SpendingPage> {
         child: child!,
       );
 
-  // ── Filter logic ──────────────────────────────────────────────────────────
+  // Filter logic
 
   bool _matchesFilter(Map<String, dynamic> data) {
     final ts = data['selectionDate'] as Timestamp?;
@@ -143,7 +143,7 @@ class _SpendingPageState extends State<SpendingPage> {
     return 'pending';
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // Helpers
 
   Map<String, List<QueryDocumentSnapshot>> _groupByOrder(
       List<QueryDocumentSnapshot> docs) {
@@ -280,7 +280,7 @@ class _SpendingPageState extends State<SpendingPage> {
     );
   }
 
-  // ── Filter section ────────────────────────────────────────────────────────
+  // Filter section
 
   Widget _buildFilterSection() {
     return Column(
@@ -428,7 +428,7 @@ class _SpendingPageState extends State<SpendingPage> {
     );
   }
 
-  // ── Summary card ──────────────────────────────────────────────────────────
+  // Summary card
 
   Widget _buildSummaryCard(double total, int orders) {
     return Container(
@@ -481,7 +481,7 @@ class _SpendingPageState extends State<SpendingPage> {
     );
   }
 
-  // ── Empty / Prompt states ─────────────────────────────────────────────────
+  // Empty / Prompt states
 
   Widget _buildPickPrompt() {
     return Padding(
@@ -527,7 +527,7 @@ class _SpendingPageState extends State<SpendingPage> {
     );
   }
 
-  // ── Order card ────────────────────────────────────────────────────────────
+  // Order card
 
   Widget _buildOrderCard(List<QueryDocumentSnapshot> items) {
     final first = items.first.data() as Map<String, dynamic>;

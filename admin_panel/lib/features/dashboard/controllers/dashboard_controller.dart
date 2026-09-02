@@ -40,7 +40,7 @@ class DashboardController extends GetxController {
     super.onClose();
   }
 
-  // ── Real-time streams ────────────────────────────────────────────────────
+  // Real-time streams
 
   void _setupStreams() {
     final schoolId = Get.find<AuthController>().schoolId.value;
@@ -117,7 +117,7 @@ class DashboardController extends GetxController {
     }, onError: (_) => markReady()));
   }
 
-  // ── Deliveries (one-time, complex aggregation) ───────────────────────────
+  // Deliveries (one-time, complex aggregation)
 
   Future<void> _fetchDeliveries() async {
     isLoadingDeliveries.value = true;

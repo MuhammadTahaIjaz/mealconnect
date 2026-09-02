@@ -108,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     )),
                 const SizedBox(height: 36),
 
-                // ── Email ────────────────────────────────────────────────────
+                // Email
                 _buildLabel('Email'),
                 const SizedBox(height: 6),
                 _buildTextField(
@@ -121,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // ── Password ─────────────────────────────────────────────────
+                // Password
                 _buildLabel('Password'),
                 const SizedBox(height: 6),
                 Obx(() => _buildTextField(
@@ -139,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           : (_) => _submit(),
                     )),
 
-                // ── Forgot password (login mode only) ────────────────────────
+                // Forgot password (login mode only)
                 Obx(() => !_isSignUp.value
                     ? Align(
                         alignment: Alignment.centerRight,
@@ -177,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       )
                     : const SizedBox.shrink()),
 
-                // ── Sign-up only: School Name + Branch ────────────────────────
+                // Sign-up only: School Name + Branch
                 Obx(() => _isSignUp.value
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -221,7 +221,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 24),
 
-                // ── Error ─────────────────────────────────────────────────────
+                // Error
                 Obx(() => _auth.errorMessage.value.isNotEmpty
                     ? Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -237,7 +237,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       )
                     : const SizedBox.shrink()),
 
-                // ── Submit button ─────────────────────────────────────────────
+                // Submit button
                 Obx(() => _buildGradientButton(
                       label: _auth.isLoading.value
                           ? 'Please wait...'
@@ -247,7 +247,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 20),
 
-                // ── Toggle login / signup ─────────────────────────────────────
+                // Toggle login / signup
                 Obx(() => GestureDetector(
                       onTap: () {
                         _isSignUp.value = !_isSignUp.value;
