@@ -31,7 +31,7 @@ class ReportsController extends GetxController {
       final fromDate = DateTime(now.year, now.month, 1);
       final dayCount = now.day; // day 1 through today inclusive
 
-      // ── Get this school's cafeteria IDs ────────────────────────────────
+      // Get this school's cafeteria IDs
       final cafSnap = await _db
           .collection('cafeterias')
           .where('schoolId', isEqualTo: schoolId)
@@ -43,7 +43,7 @@ class ReportsController extends GetxController {
         return;
       }
 
-      // ── Fetch delivered mealSelections in batches of 30 ────────────────
+      // Fetch delivered mealSelections in batches of 30
       final allDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
       const batchSize = 30;
       for (var i = 0; i < cafIds.length; i += batchSize) {
@@ -57,7 +57,7 @@ class ReportsController extends GetxController {
         allDocs.addAll(snap.docs);
       }
 
-      // ── Initialise a slot for every day in the month-to-date window ────
+      // Initialise a slot for every day in the month-to-date window
       // key = 'yyyy-MM-dd', value = Set of unique orderIds for that day
       final Map<String, Set<String>> ordersByDay = {};
       for (var i = 0; i < dayCount; i++) {
@@ -84,7 +84,7 @@ class ReportsController extends GetxController {
         allOrderIds.add(orderId);
       }
 
-      // ── Build sorted daily list ────────────────────────────────────────
+      // Build sorted daily list
       final entries = ordersByDay.entries.toList()
         ..sort((a, b) => a.key.compareTo(b.key));
 

@@ -164,7 +164,7 @@ class HomePage extends StatelessWidget {
   }
 }
 
-// ── Child Card ────────────────────────────────────────────────────────────────
+// Child Card
 
 class _ChildCard extends StatefulWidget {
   final String childId;
@@ -190,7 +190,7 @@ class _ChildCardState extends State<_ChildCard> {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final name = (widget.data['name'] as String?) ?? 'Child';
 
-    // Show spinner immediately — visible while the query runs
+    // Show spinner immediately so it's visible while the query runs
     setState(() => _isDeleting = true);
 
     try {

@@ -88,7 +88,7 @@ class _TypeSelectionScreenState extends State<TypeSelectionScreen>
                   children: [
                     const SizedBox(height: 60),
 
-                    // ── App Name ──
+                    // App Name
                     const Text(
                       'MealConnect',
                       style: TextStyle(
@@ -103,7 +103,7 @@ class _TypeSelectionScreenState extends State<TypeSelectionScreen>
 
                     const Spacer(),
 
-                    // ── TYPE SELECTION label ──
+                    // TYPE SELECTION label
                     const Text(
                       'TYPE SELECTION',
                       style: TextStyle(
@@ -116,7 +116,7 @@ class _TypeSelectionScreenState extends State<TypeSelectionScreen>
 
                     const SizedBox(height: 28),
 
-                    // ── Selection Cards ──
+                    // Selection Cards
                     Row(
                       children: [
                         // Parents Card
@@ -145,7 +145,7 @@ class _TypeSelectionScreenState extends State<TypeSelectionScreen>
 
                     const Spacer(),
 
-                    // ── Continue Button ──
+                    // Continue Button
                     SizedBox(
                       width: double.infinity,
                       height: 58,
@@ -183,7 +183,7 @@ class _TypeSelectionScreenState extends State<TypeSelectionScreen>
   }
 }
 
-// ── Reusable Selection Card Widget ──────────────────────────────────────────
+// Reusable Selection Card Widget
 
 class _SelectionCard extends StatelessWidget {
   final String label;

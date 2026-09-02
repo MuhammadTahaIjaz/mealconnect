@@ -326,7 +326,7 @@ class _IdentificationPageState extends State<IdentificationPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       children: [
-        // ── Child info card ──────────────────────────────────
+        // Child info card
         Container(
           padding: const EdgeInsets.all(16),
           decoration: _cardDeco(),
@@ -412,7 +412,7 @@ class _IdentificationPageState extends State<IdentificationPage> {
         ),
         const SizedBox(height: 20),
 
-        // ── Orders section ───────────────────────────────────
+        // Orders section
         const Text(
           'Pending Orders',
           style: TextStyle(
