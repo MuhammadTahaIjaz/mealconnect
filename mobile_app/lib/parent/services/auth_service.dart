@@ -8,7 +8,7 @@ class AuthService {
   static User? get currentUser => _auth.currentUser;
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // ── Sign In ───────────────────────────────────────────────────────────────
+  // Sign In
 
   static Future<String?> signIn({
     required String email,
@@ -42,7 +42,7 @@ class AuthService {
     }
   }
 
-  // ── Sign Up ───────────────────────────────────────────────────────────────
+  // Sign Up
 
   static Future<String?> signUp({
     required String name,
@@ -94,7 +94,7 @@ class AuthService {
     }
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // Helpers
 
   /// Returns the Firebase UID of the admin for the given schoolId.
   static Future<String?> _getSchoolAdminUid(String schoolId) async {

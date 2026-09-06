@@ -34,7 +34,7 @@ class DashboardPage extends GetView<DashboardController> {
     );
   }
 
-  // ── Header ────────────────────────────────────────────────────────────────
+  // Header
 
   Widget _buildHeader() {
     return Column(
@@ -62,7 +62,7 @@ class DashboardPage extends GetView<DashboardController> {
     );
   }
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
+  // Stats
 
   Widget _buildStatsSection() {
     return Column(
@@ -311,7 +311,7 @@ class DashboardPage extends GetView<DashboardController> {
     );
   }
 
-  // ── Quick Actions ─────────────────────────────────────────────────────────
+  // Quick Actions
 
   Widget _buildQuickActions() {
     final pendingParents =
@@ -386,7 +386,7 @@ class DashboardPage extends GetView<DashboardController> {
   }
 }
 
-// ── Hoverable action button ───────────────────────────────────────────────────
+// Hoverable action button
 
 class _ActionButton extends StatefulWidget {
   final String label;

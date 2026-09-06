@@ -6,7 +6,7 @@ import '../controllers/users_controller.dart';
 class UserManagementPage extends GetView<UsersController> {
   const UserManagementPage({super.key});
 
-  // ── Column flex weights ───────────────────────────────────────────────────
+  // Column flex weights
   static const _flexName   = 3;
   static const _flexEmail  = 3;
   static const _flexId     = 2;
@@ -33,7 +33,7 @@ class UserManagementPage extends GetView<UsersController> {
     );
   }
 
-  // ── Header ────────────────────────────────────────────────────────────────
+  // Header
 
   Widget _buildHeader() {
     return Row(
@@ -65,7 +65,7 @@ class UserManagementPage extends GetView<UsersController> {
     );
   }
 
-  // ── Filters ───────────────────────────────────────────────────────────────
+  // Filters
 
   Widget _buildFilters() {
     return Row(
@@ -138,7 +138,7 @@ class UserManagementPage extends GetView<UsersController> {
     );
   }
 
-  // ── Table ─────────────────────────────────────────────────────────────────
+  // Table
 
   Widget _buildTable(BuildContext context) {
     return Obx(() {
@@ -369,7 +369,7 @@ class UserManagementPage extends GetView<UsersController> {
     });
   }
 
-  // ── Delete confirmation ───────────────────────────────────────────────────
+  // Delete confirmation
 
   void _confirmDelete(BuildContext context, UserRecord user) {
     String message;
@@ -434,7 +434,7 @@ class UserManagementPage extends GetView<UsersController> {
     );
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // Helpers
 
   Widget _buildRoleBadge(String role) {
     Color color;
@@ -474,7 +474,7 @@ class UserManagementPage extends GetView<UsersController> {
   }
 }
 
-// ── Hoverable delete button ───────────────────────────────────────────────────
+// Hoverable delete button
 
 class _DeleteButton extends StatefulWidget {
   final VoidCallback onTap;
