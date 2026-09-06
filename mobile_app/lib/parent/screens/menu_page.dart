@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// ── Top-level helpers ────────────────────────────────────────────────────────
+// Top-level helpers
 
 String _weekdayName(int weekday) {
   const n = [
@@ -19,7 +19,7 @@ String _shortMonth(int month) {
   return m[month];
 }
 
-// ── MenuPage ─────────────────────────────────────────────────────────────────
+// MenuPage
 
 class MenuPage extends StatefulWidget {
   const MenuPage({super.key});
@@ -685,7 +685,7 @@ class _MenuPageState extends State<MenuPage> {
   }
 }
 
-// ── Day Selection Bottom Sheet ────────────────────────────────────────────────
+// Day Selection Bottom Sheet
 
 class _DaySelectionSheet extends StatefulWidget {
   final String mealName;

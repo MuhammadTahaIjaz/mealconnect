@@ -109,7 +109,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
             children: [
               const Spacer(flex: 2),
 
-              // ── Icon ──────────────────────────────────────────────────────
+              // Icon
               Container(
                 width: 100,
                 height: 100,
@@ -129,7 +129,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
               ),
               const SizedBox(height: 32),
 
-              // ── Title ─────────────────────────────────────────────────────
+              // Title
               const Text(
                 'Account Under Review',
                 textAlign: TextAlign.center,
@@ -141,7 +141,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
               ),
               const SizedBox(height: 14),
 
-              // ── Message ───────────────────────────────────────────────────
+              // Message
               const Text(
                 'Your sign-up request has been received. '
                 'You will get an email once the admin approves your account. '
@@ -155,7 +155,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
               ),
               const SizedBox(height: 12),
 
-              // ── Live indicator ────────────────────────────────────────────
+              // Live indicator
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -180,7 +180,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
 
               const Spacer(flex: 2),
 
-              // ── Add Children button ───────────────────────────────────────
+              // Add Children button
               SizedBox(
                 width: double.infinity,
                 height: 54,
@@ -217,7 +217,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
               ),
               const SizedBox(height: 16),
 
-              // ── Sign out ──────────────────────────────────────────────────
+              // Sign out
               GestureDetector(
                 onTap: _signOut,
                 child: const Padding(
