@@ -33,12 +33,12 @@ class UserRecord {
 class UsersController extends GetxController {
   final _db = FirebaseFirestore.instance;
 
-  final users         = <UserRecord>[].obs;
+  final users = <UserRecord>[].obs;
   final filteredUsers = <UserRecord>[].obs;
-  final isLoading     = true.obs;
-  final selectedRole  = 'All'.obs;
-  final searchQuery   = ''.obs;
-  final deletingIds   = <String>[].obs;
+  final isLoading = true.obs;
+  final selectedRole = 'All'.obs;
+  final searchQuery = ''.obs;
+  final deletingIds = <String>[].obs;
 
   final roles = ['All', 'parent', 'cafeteria', 'child'];
 
@@ -51,7 +51,7 @@ class UsersController extends GetxController {
     super.onInit();
     _loadData();
     ever(selectedRole, (_) => _applyFilter());
-    ever(searchQuery,  (_) => _applyFilter());
+    ever(searchQuery, (_) => _applyFilter());
   }
 
   @override
@@ -64,21 +64,50 @@ class UsersController extends GetxController {
     isLoading.value = true;
     try {
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
-      final schoolId   = Get.find<AuthController>().schoolId.value;
+      final schoolId = Get.find<AuthController>().schoolId.value;
 
-      final usersSnap = await _db.collection('users').get();
+      final usersSnap = await _db
+          .collection('users')
+          .where('schoolId', isEqualTo: schoolId)
+          .get();
+
+      final approvedParentsSnap = await _db
+          .collection('parents')
+          .where('schoolId', isEqualTo: schoolId)
+          .where('accountStatus', isEqualTo: 'approved')
+          .get();
+      final approvedParentIds =
+          approvedParentsSnap.docs.map((d) => d.id).toSet();
+
+      final approvedCafeteriasSnap = await _db
+          .collection('cafeterias')
+          .where('schoolId', isEqualTo: schoolId)
+          .where('accountStatus', isEqualTo: 'approved')
+          .get();
+      final approvedCafeteriaIds =
+          approvedCafeteriasSnap.docs.map((d) => d.id).toSet();
+
       _nonChildUsers = usersSnap.docs
-          .where((doc) => doc.id != currentUid)
+          .where((doc) {
+            final d = doc.data();
+            if (doc.id == currentUid || d['role'] == 'admin') return false;
+            if (d['role'] == 'parent') return approvedParentIds.contains(doc.id);
+            if (d['role'] == 'cafeteria') {
+              return approvedCafeteriaIds.contains(doc.id);
+            }
+            return true;
+          })
           .map((doc) {
             final d = doc.data();
             return UserRecord(
-              userId:    doc.id,
-              name:      d['name']  ?? '',
-              email:     d['email'] ?? '',
-              role:      d['role']  ?? '',
+              userId: doc.id,
+              name: d['name'] ?? '',
+              email: d['email'] ?? '',
+              role: d['role'] ?? '',
               timestamp: d['timestamp'],
             );
-          }).toList();
+          })
+          .toList();
 
       _parentNameMap = {for (final u in _nonChildUsers) u.userId: u.name};
 
@@ -87,27 +116,28 @@ class UsersController extends GetxController {
         _childrenSub = _db
             .collection('children')
             .where('schoolId', isEqualTo: schoolId)
+            .where('verificationStatus', isEqualTo: 'approved')
             .snapshots()
             .listen((snap) {
-          final childRecords = snap.docs.map((doc) {
-            final d = doc.data();
-            final pid = d['parentId'] as String? ?? '';
-            return UserRecord(
-              userId:        doc.id,
-              name:          d['name'] ?? '',
-              email:         '',
-              role:          'child',
-              timestamp:     d['createdAt'],
-              parentName:    _parentNameMap[pid] ?? '',
-              parentId:      pid,
-              mealConnectId: d['mealConnectId'] as String?,
-            );
-          }).toList();
+              final childRecords = snap.docs.map((doc) {
+                final d = doc.data();
+                final pid = d['parentId'] as String? ?? '';
+                return UserRecord(
+                  userId: doc.id,
+                  name: d['name'] ?? '',
+                  email: '',
+                  role: 'child',
+                  timestamp: d['createdAt'],
+                  parentName: _parentNameMap[pid] ?? '',
+                  parentId: pid,
+                  mealConnectId: d['mealConnectId'] as String?,
+                );
+              }).toList();
 
-          users.value = [..._nonChildUsers, ...childRecords];
-          _applyFilter();
-          if (isLoading.value) isLoading.value = false;
-        });
+              users.value = [..._nonChildUsers, ...childRecords];
+              _applyFilter();
+              if (isLoading.value) isLoading.value = false;
+            });
       } else {
         users.value = [..._nonChildUsers];
         _applyFilter();
@@ -125,10 +155,14 @@ class UsersController extends GetxController {
     }
     if (searchQuery.value.isNotEmpty) {
       final q = searchQuery.value.toLowerCase();
-      list = list.where((u) =>
-          u.name.toLowerCase().contains(q) ||
-          u.email.toLowerCase().contains(q) ||
-          (u.parentName?.toLowerCase().contains(q) ?? false)).toList();
+      list = list
+          .where(
+            (u) =>
+                u.name.toLowerCase().contains(q) ||
+                u.email.toLowerCase().contains(q) ||
+                (u.parentName?.toLowerCase().contains(q) ?? false),
+          )
+          .toList();
     }
     filteredUsers.value = list;
   }
@@ -147,7 +181,10 @@ class UsersController extends GetxController {
 
         if (user.role == 'parent') {
           // Fetch stripeCustomerId before deleting the Firestore doc
-          final parentDoc = await _db.collection('parents').doc(user.userId).get();
+          final parentDoc = await _db
+              .collection('parents')
+              .doc(user.userId)
+              .get();
           final customerId = parentDoc.data()?['stripeCustomerId'] as String?;
 
           // Delete Stripe customer + Firebase Auth user via backend
@@ -171,7 +208,10 @@ class UsersController extends GetxController {
           }
         } else if (user.role == 'cafeteria') {
           // Fetch stripeAccountId before deleting the Firestore doc
-          final cafDoc = await _db.collection('cafeterias').doc(user.userId).get();
+          final cafDoc = await _db
+              .collection('cafeterias')
+              .doc(user.userId)
+              .get();
           final stripeAccountId = cafDoc.data()?['stripeAccountId'] as String?;
 
           // Delete Stripe Express account + Firebase Auth user via backend
@@ -179,7 +219,10 @@ class UsersController extends GetxController {
             await http.post(
               Uri.parse('$_backendUrl/delete-cafeteria'),
               headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({'uid': user.userId, 'stripeAccountId': stripeAccountId}),
+              body: jsonEncode({
+                'uid': user.userId,
+                'stripeAccountId': stripeAccountId,
+              }),
             );
           } catch (_) {
             // Backend unavailable, continue with Firestore cleanup
