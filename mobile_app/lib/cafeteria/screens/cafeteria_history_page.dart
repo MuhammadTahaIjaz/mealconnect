@@ -17,6 +17,7 @@ class _CafeteriaHistoryPageState
 
   // null = show all within 30 days; set = filter to that date
   DateTime? _filterDate;
+  String _statusFilter = 'all'; // 'all' | 'delivered' | 'expired'
 
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
@@ -45,18 +46,19 @@ class _CafeteriaHistoryPageState
     }
   }
 
-  Map<String, List<QueryDocumentSnapshot>> _groupByOrderId(
-      List<QueryDocumentSnapshot> docs) {
-    final grouped = <String, List<QueryDocumentSnapshot>>{};
-    for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final key =
-          (data['orderId'] as String?)?.isNotEmpty == true
-              ? data['orderId'] as String
-              : doc.id;
-      grouped.putIfAbsent(key, () => []).add(doc);
+  // status: 'delivered' | 'expired' | 'pending'
+  String _orderStatus(Map<String, dynamic> d) {
+    if (d['isDelivered'] == true) return 'delivered';
+    final deliveryTs = d['deliveryDate'] as Timestamp?;
+    if (deliveryTs != null) {
+      final today = DateTime.now();
+      final todayMidnight = DateTime(today.year, today.month, today.day);
+      final deliveryDay = deliveryTs.toDate();
+      final deliveryMidnight =
+          DateTime(deliveryDay.year, deliveryDay.month, deliveryDay.day);
+      if (deliveryMidnight.isBefore(todayMidnight)) return 'expired';
     }
-    return grouped;
+    return 'pending';
   }
 
   @override
@@ -93,7 +95,12 @@ class _CafeteriaHistoryPageState
                       (snapshot.data?.docs ?? []).where((doc) {
                     final d =
                         doc.data() as Map<String, dynamic>;
-                    if (d['isDelivered'] != true) return false;
+                    final status = _orderStatus(d);
+                    if (status == 'pending') return false;
+                    if (_statusFilter != 'all' &&
+                        status != _statusFilter) {
+                      return false;
+                    }
                     // Date filter
                     if (_filterDate != null) {
                       final deliveryTs =
@@ -151,12 +158,15 @@ class _CafeteriaHistoryPageState
           ),
           const SizedBox(height: 4),
           const Text(
-            'Last 30 days  •  Delivered orders',
+            'Last 30 days',
             style: TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               GestureDetector(
                 onTap: _pickDate,
@@ -201,8 +211,7 @@ class _CafeteriaHistoryPageState
                   ),
                 ),
               ),
-              if (_filterDate != null) ...[
-                const SizedBox(width: 8),
+              if (_filterDate != null)
                 GestureDetector(
                   onTap: () => setState(() => _filterDate = null),
                   child: Container(
@@ -215,10 +224,48 @@ class _CafeteriaHistoryPageState
                         size: 14, color: Color(0xFF9B9B9B)),
                   ),
                 ),
-              ],
+              _buildStatusFilter(),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatusFilter() {
+    const labels = {
+      'all': 'All',
+      'delivered': 'Delivered',
+      'expired': 'Expired',
+    };
+    final active = _statusFilter != 'all';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: active ? _pink.withValues(alpha: 0.10) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: active ? _pink : const Color(0xFFEEEEEE),
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _statusFilter,
+          icon: Icon(Icons.keyboard_arrow_down,
+              size: 16, color: active ? _pink : const Color(0xFF9B9B9B)),
+          style: TextStyle(
+            fontSize: 13,
+            color: active ? _pink : const Color(0xFF9B9B9B),
+            fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+          ),
+          items: labels.entries
+              .map((e) =>
+                  DropdownMenuItem(value: e.key, child: Text(e.value)))
+              .toList(),
+          onChanged: (v) {
+            if (v != null) setState(() => _statusFilter = v);
+          },
+        ),
       ),
     );
   }
@@ -232,7 +279,7 @@ class _CafeteriaHistoryPageState
               size: 64, color: Colors.grey.shade300),
           const SizedBox(height: 16),
           const Text(
-            'No deliveries in the last 30 days.',
+            'No order history in the last 30 days.',
             style: TextStyle(
                 fontSize: 14, color: Color(0xFF9B9B9B)),
           ),
@@ -242,15 +289,16 @@ class _CafeteriaHistoryPageState
   }
 
   Widget _buildContent(List<QueryDocumentSnapshot> docs) {
-    // Total earned = sum of all individual items
+    // Total earned = sum of delivered items only (expired orders were refunded, not earned)
     double totalEarned = 0;
     for (final doc in docs) {
       final d = doc.data() as Map<String, dynamic>;
+      if (_orderStatus(d) != 'delivered') continue;
       totalEarned += (d['price'] as num).toDouble() *
           (d['quantity'] as num).toInt();
     }
 
-    // Level 1: group by date
+    // Group by date only — each meal item gets its own card
     final byDate =
         <String, List<QueryDocumentSnapshot>>{};
     for (final doc in docs) {
@@ -262,16 +310,14 @@ class _CafeteriaHistoryPageState
           .add(doc);
     }
 
-    // Count distinct orders across all dates
-    final totalOrders = _groupByOrderId(docs).length;
+    final totalItems = docs.length;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       children: [
-        _buildSummaryCard(totalEarned, totalOrders),
+        _buildSummaryCard(totalEarned, totalItems),
         const SizedBox(height: 8),
         ...byDate.entries.expand((dateEntry) {
-          final byOrder = _groupByOrderId(dateEntry.value);
           return [
             Padding(
               padding:
@@ -286,15 +332,14 @@ class _CafeteriaHistoryPageState
                 ),
               ),
             ),
-            ...byOrder.entries
-                .map((e) => _buildOrderCard(e.value)),
+            ...dateEntry.value.map((doc) => _buildOrderCard([doc])),
           ];
         }),
       ],
     );
   }
 
-  Widget _buildSummaryCard(double total, int orderCount) {
+  Widget _buildSummaryCard(double total, int itemCount) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -338,7 +383,7 @@ class _CafeteriaHistoryPageState
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '$orderCount',
+                '$itemCount',
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w700,
@@ -346,7 +391,7 @@ class _CafeteriaHistoryPageState
                 ),
               ),
               const Text(
-                'orders',
+                'items',
                 style: TextStyle(
                     fontSize: 12, color: Colors.white70),
               ),
@@ -363,6 +408,13 @@ class _CafeteriaHistoryPageState
     final ts = first['selectionDate'] as Timestamp?;
     final timeStr =
         ts != null ? _timeStr(ts.toDate()) : '';
+    final status = _orderStatus(first);
+    final deliveryTs = first['deliveryDate'] as Timestamp?;
+    final deliveryStr = deliveryTs == null
+        ? ''
+        : status == 'delivered'
+            ? _timeStr(deliveryTs.toDate())
+            : _dateOnlyStr(deliveryTs.toDate());
 
     double total = 0;
     for (final doc in items) {
@@ -414,10 +466,26 @@ class _CafeteriaHistoryPageState
                   ),
                 ),
               ),
-              Text(
-                timeStr,
-                style: const TextStyle(
-                    fontSize: 12, color: Color(0xFF9B9B9B)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Ordered: $timeStr',
+                    style: const TextStyle(
+                        fontSize: 11, color: Color(0xFF9B9B9B)),
+                  ),
+                  if (deliveryStr.isNotEmpty)
+                    Text(
+                      status == 'delivered'
+                          ? 'Delivered: $deliveryStr'
+                          : 'Expired: $deliveryStr',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: status == 'delivered'
+                              ? const Color(0xFF43A047)
+                              : const Color(0xFFE53935)),
+                    ),
+                ],
               ),
             ],
           ),
@@ -476,28 +544,38 @@ class _CafeteriaHistoryPageState
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF43A047),
+                  color: Color(0xFF1A1A1A),
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
+                  color: status == 'delivered'
+                      ? const Color(0xFFE8F5E9)
+                      : const Color(0xFFFFEBEE),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.check_circle,
-                        size: 10, color: Color(0xFF43A047)),
-                    SizedBox(width: 3),
+                    Icon(
+                        status == 'delivered'
+                            ? Icons.check_circle
+                            : Icons.cancel_outlined,
+                        size: 10,
+                        color: status == 'delivered'
+                            ? const Color(0xFF43A047)
+                            : const Color(0xFFE53935)),
+                    const SizedBox(width: 3),
                     Text(
-                      'Delivered',
+                      status == 'delivered' ? 'Delivered' : 'Expired',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF43A047),
+                        color: status == 'delivered'
+                            ? const Color(0xFF43A047)
+                            : const Color(0xFFE53935),
                       ),
                     ),
                   ],
@@ -535,5 +613,13 @@ class _CafeteriaHistoryPageState
     final amPm = dt.hour < 12 ? 'AM' : 'PM';
     final time = '$h:${dt.minute.toString().padLeft(2, '0')} $amPm';
     return '$date  •  $time';
+  }
+
+  String _dateOnlyStr(DateTime dt) {
+    const mo = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${dt.day} ${mo[dt.month - 1]}';
   }
 }

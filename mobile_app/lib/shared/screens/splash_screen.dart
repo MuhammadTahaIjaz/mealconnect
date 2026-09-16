@@ -91,6 +91,7 @@ class _SplashScreenState extends State<SplashScreen>
         final status =
             await parent_auth.AuthService.getAccountStatus(user.uid);
         if (status == 'approved') {
+          await _refundExpiredOrders(user.uid);
           final hasChildren =
               await parent_auth.AuthService.hasChildren(user.uid);
           _nextRoute =
@@ -101,6 +102,46 @@ class _SplashScreenState extends State<SplashScreen>
       }
     } catch (_) {
       _nextRoute = '/type-selection';
+    }
+  }
+
+  // Refunds any order whose delivery date has passed without being
+  // delivered, and marks it 'expired' so it stops showing as active.
+  Future<void> _refundExpiredOrders(String uid) async {
+    try {
+      final db = FirebaseFirestore.instance;
+      final now = DateTime.now();
+      final todayMidnight = DateTime(now.year, now.month, now.day);
+
+      final snap = await db
+          .collection('mealSelections')
+          .where('parentId', isEqualTo: uid)
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      final expired = snap.docs.where((doc) {
+        final ts = doc.data()['deliveryDate'] as Timestamp?;
+        if (ts == null) return false;
+        final d = ts.toDate();
+        return DateTime(d.year, d.month, d.day).isBefore(todayMidnight);
+      }).toList();
+
+      if (expired.isEmpty) return;
+
+      double refundTotal = 0;
+      final batch = db.batch();
+      for (final doc in expired) {
+        final data = doc.data();
+        refundTotal += (data['price'] as num).toDouble() *
+            (data['quantity'] as num).toInt();
+        batch.update(doc.reference, {'status': 'expired'});
+      }
+      batch.update(db.collection('parents').doc(uid), {
+        'walletBalance': FieldValue.increment(refundTotal),
+      });
+      await batch.commit();
+    } catch (_) {
+      // Best-effort; never block routing on this
     }
   }
 

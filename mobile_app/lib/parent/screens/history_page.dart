@@ -13,6 +13,7 @@ class _HistoryPageState extends State<HistoryPage> {
   static const _pink = Color(0xFFFF3366);
 
   DateTime? _filterDate;
+  String _statusFilter = 'all'; // 'all' | 'delivered' | 'pending' | 'expired'
 
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
@@ -70,21 +71,6 @@ class _HistoryPageState extends State<HistoryPage> {
     } catch (_) {}
   }
 
-  // Group a flat list by orderId, falling back to doc.id for old records
-  Map<String, List<QueryDocumentSnapshot>> _groupByOrderId(
-      List<QueryDocumentSnapshot> docs) {
-    final grouped = <String, List<QueryDocumentSnapshot>>{};
-    for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final key =
-          (data['orderId'] as String?)?.isNotEmpty == true
-              ? data['orderId'] as String
-              : doc.id;
-      grouped.putIfAbsent(key, () => []).add(doc);
-    }
-    return grouped;
-  }
-
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser!.uid;
@@ -120,6 +106,10 @@ class _HistoryPageState extends State<HistoryPage> {
                     final d = doc.data() as Map<String, dynamic>;
                     final ts = d['selectionDate'] as Timestamp?;
                     if (ts == null) return false;
+                    if (_statusFilter != 'all' &&
+                        _orderStatus(d) != _statusFilter) {
+                      return false;
+                    }
                     if (_filterDate != null) {
                       final dd = ts.toDate();
                       return _isSameDay(
@@ -174,8 +164,11 @@ class _HistoryPageState extends State<HistoryPage> {
             style: TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               GestureDetector(
                 onTap: _pickDate,
@@ -220,8 +213,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   ),
                 ),
               ),
-              if (_filterDate != null) ...[
-                const SizedBox(width: 8),
+              if (_filterDate != null)
                 GestureDetector(
                   onTap: () => setState(() => _filterDate = null),
                   child: Container(
@@ -234,10 +226,49 @@ class _HistoryPageState extends State<HistoryPage> {
                         size: 14, color: Color(0xFF9B9B9B)),
                   ),
                 ),
-              ],
+              _buildStatusFilter(),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatusFilter() {
+    const labels = {
+      'all': 'All',
+      'delivered': 'Delivered',
+      'pending': 'Pending',
+      'expired': 'Expired',
+    };
+    final active = _statusFilter != 'all';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: active ? _pink.withValues(alpha: 0.10) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: active ? _pink : const Color(0xFFEEEEEE),
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _statusFilter,
+          icon: Icon(Icons.keyboard_arrow_down,
+              size: 16, color: active ? _pink : const Color(0xFF9B9B9B)),
+          style: TextStyle(
+            fontSize: 13,
+            color: active ? _pink : const Color(0xFF9B9B9B),
+            fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+          ),
+          items: labels.entries
+              .map((e) =>
+                  DropdownMenuItem(value: e.key, child: Text(e.value)))
+              .toList(),
+          onChanged: (v) {
+            if (v != null) setState(() => _statusFilter = v);
+          },
+        ),
       ),
     );
   }
@@ -273,9 +304,9 @@ class _HistoryPageState extends State<HistoryPage> {
       totalSpent += (d['price'] as num).toDouble() *
           (d['quantity'] as num).toInt();
     }
-    final totalOrders = _groupByOrderId(docs).length;
+    final totalItems = docs.length;
 
-    // Level 1: group by date
+    // Group by date only — each meal item gets its own card
     final byDate = <String, List<QueryDocumentSnapshot>>{};
     for (final doc in docs) {
       final ts = ((doc.data() as Map<String, dynamic>)[
@@ -287,11 +318,9 @@ class _HistoryPageState extends State<HistoryPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       children: [
-        _buildSummaryCard(totalSpent, totalOrders),
+        _buildSummaryCard(totalSpent, totalItems),
         const SizedBox(height: 8),
         ...byDate.entries.expand((dateEntry) {
-          // Level 2: group by orderId within each date
-          final byOrder = _groupByOrderId(dateEntry.value);
           return [
             Padding(
               padding: const EdgeInsets.only(top: 16, bottom: 8),
@@ -305,14 +334,14 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
               ),
             ),
-            ...byOrder.entries.map((e) => _buildOrderCard(e.value)),
+            ...dateEntry.value.map((doc) => _buildOrderCard([doc])),
           ];
         }),
       ],
     );
   }
 
-  Widget _buildSummaryCard(double total, int orderCount) {
+  Widget _buildSummaryCard(double total, int itemCount) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -354,7 +383,7 @@ class _HistoryPageState extends State<HistoryPage> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '$orderCount',
+                '$itemCount',
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w700,
@@ -362,7 +391,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
               ),
               const Text(
-                'orders',
+                'items',
                 style: TextStyle(fontSize: 12, color: Colors.white70),
               ),
             ],
@@ -486,12 +515,12 @@ class _HistoryPageState extends State<HistoryPage> {
             final qty = (d['quantity'] as num).toInt();
             final price = (d['price'] as num).toDouble();
             final isDelivered = d['isDelivered'] == true;
-            final deliveryTs = isDelivered
-                ? d['deliveryDate'] as Timestamp?
-                : null;
-            final deliveryStr = deliveryTs != null
-                ? _deliveryDateStr(deliveryTs.toDate())
-                : '';
+            final deliveryTs = d['deliveryDate'] as Timestamp?;
+            final deliveryStr = deliveryTs == null
+                ? ''
+                : isDelivered
+                    ? _deliveryDateStr(deliveryTs.toDate())
+                    : _dateOnlyStr(deliveryTs.toDate());
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(
@@ -511,10 +540,14 @@ class _HistoryPageState extends State<HistoryPage> {
                         ),
                         if (deliveryStr.isNotEmpty)
                           Text(
-                            'Delivered: $deliveryStr',
-                            style: const TextStyle(
+                            isDelivered
+                                ? 'Delivered: $deliveryStr'
+                                : 'Scheduled for: $deliveryStr',
+                            style: TextStyle(
                                 fontSize: 11,
-                                color: Color(0xFF43A047)),
+                                color: isDelivered
+                                    ? const Color(0xFF43A047)
+                                    : const Color(0xFFF5A623)),
                           ),
                       ],
                     ),
@@ -654,5 +687,14 @@ class _HistoryPageState extends State<HistoryPage> {
     final amPm = dt.hour < 12 ? 'AM' : 'PM';
     final time = '$h:${dt.minute.toString().padLeft(2, '0')} $amPm';
     return '${days[dt.weekday]}, ${dt.day} ${mo[dt.month]}  $time';
+  }
+
+  String _dateOnlyStr(DateTime dt) {
+    const days = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const mo = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${days[dt.weekday]}, ${dt.day} ${mo[dt.month]}';
   }
 }
