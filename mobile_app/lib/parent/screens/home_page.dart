@@ -197,7 +197,7 @@ class _ChildCardState extends State<_ChildCard> {
       final pendingSnap = await db
           .collection('mealSelections')
           .where('childId', isEqualTo: widget.childId)
-          .where('isDelivered', isEqualTo: false)
+          .where('status', isEqualTo: 'pending')
           .get();
 
       final pendingCount = pendingSnap.docs.length;
