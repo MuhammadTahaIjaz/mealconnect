@@ -17,6 +17,7 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
   static const _pink = Color(0xFFFF3366);
   static const _orange = Color(0xFFFF8C00);
   static const _backendUrl = 'http://72.61.254.215:3000';
+  static const _pkrToUsdRate = 280.0;
 
   // Customer / saved card state
   bool _loadingCustomer = true;
@@ -45,8 +46,7 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
           .doc(uid)
           .get();
 
-      String? customerId =
-          parentDoc.data()?['stripeCustomerId'] as String?;
+      String? customerId = parentDoc.data()?['stripeCustomerId'] as String?;
 
       // Create a Stripe customer if this is the first time
       if (customerId == null) {
@@ -56,8 +56,7 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
           body: jsonEncode({'email': user.email, 'uid': uid}),
         );
         if (response.statusCode == 200) {
-          customerId =
-              jsonDecode(response.body)['customerId'] as String;
+          customerId = jsonDecode(response.body)['customerId'] as String;
           await FirebaseFirestore.instance
               .collection('parents')
               .doc(uid)
@@ -75,8 +74,7 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
           body: jsonEncode({'customerId': customerId}),
         );
         if (pmResponse.statusCode == 200) {
-          final methods =
-              jsonDecode(pmResponse.body)['paymentMethods'] as List;
+          final methods = jsonDecode(pmResponse.body)['paymentMethods'] as List;
           if (methods.isNotEmpty) {
             final card = methods.first;
             _savedCard = {
@@ -90,15 +88,17 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
     } catch (_) {
       // Falls through, user will see CardFormField
     } finally {
-      if (mounted) setState(() {
-        _loadingCustomer = false;
-        if (_savedCard == null) { _useSavedCard = false; }
-      });
+      if (mounted)
+        setState(() {
+          _loadingCustomer = false;
+          if (_savedCard == null) {
+            _useSavedCard = false;
+          }
+        });
     }
   }
 
-  bool get _canPay =>
-      _useSavedCard ? _savedCard != null : _cardComplete;
+  bool get _canPay => _useSavedCard ? _savedCard != null : _cardComplete;
 
   Future<void> _pay() async {
     if (!_canPay || _isProcessing) return;
@@ -107,7 +107,8 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
     try {
       await Stripe.instance.applySettings();
       final uid = FirebaseAuth.instance.currentUser!.uid;
-      final amountCents = (widget.amount * 100).toInt();
+      final usdAmount = widget.amount / _pkrToUsdRate;
+      final amountCents = (usdAmount * 100).toInt();
 
       final body = <String, dynamic>{'amountCents': amountCents};
       if (_stripeCustomerId != null) {
@@ -124,12 +125,10 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
       );
 
       if (response.statusCode != 200) {
-        throw jsonDecode(response.body)['error'] as String? ??
-            'Server error';
+        throw jsonDecode(response.body)['error'] as String? ?? 'Server error';
       }
 
-      final clientSecret =
-          jsonDecode(response.body)['clientSecret'] as String;
+      final clientSecret = jsonDecode(response.body)['clientSecret'] as String;
 
       if (_useSavedCard && _savedCard != null) {
         // PaymentIntent already has the payment_method set server-side
@@ -146,11 +145,9 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
         );
       }
 
-      await FirebaseFirestore.instance
-          .collection('parents')
-          .doc(uid)
-          .update(
-              {'walletBalance': FieldValue.increment(widget.amount)});
+      await FirebaseFirestore.instance.collection('parents').doc(uid).update({
+        'walletBalance': FieldValue.increment(widget.amount),
+      });
 
       if (mounted) Navigator.pop(context, true);
     } on StripeException catch (e) {
@@ -170,8 +167,7 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
         content: Text(msg),
         backgroundColor: const Color(0xFFE53935),
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -184,8 +180,11 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios,
-              color: Color(0xFF1A1A1A), size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios,
+            color: Color(0xFF1A1A1A),
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -207,8 +206,7 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
                 ),
               )
             : SingleChildScrollView(
-                padding:
-                    const EdgeInsets.fromLTRB(20, 24, 20, 32),
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -221,13 +219,18 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
                     const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.lock_outline,
-                            size: 13, color: Color(0xFF9B9B9B)),
+                        Icon(
+                          Icons.lock_outline,
+                          size: 13,
+                          color: Color(0xFF9B9B9B),
+                        ),
                         SizedBox(width: 5),
                         Text(
                           'Payments secured by Stripe',
                           style: TextStyle(
-                              fontSize: 12, color: Color(0xFF9B9B9B)),
+                            fontSize: 12,
+                            color: Color(0xFF9B9B9B),
+                          ),
                         ),
                       ],
                     ),
@@ -241,8 +244,7 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
   Widget _buildAmountCard() {
     return Container(
       width: double.infinity,
-      padding:
-          const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(colors: [_pink, _orange]),
         borderRadius: BorderRadius.circular(20),
@@ -256,8 +258,11 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
       ),
       child: Column(
         children: [
-          const Icon(Icons.account_balance_wallet_outlined,
-              color: Colors.white70, size: 32),
+          const Icon(
+            Icons.account_balance_wallet_outlined,
+            color: Colors.white70,
+            size: 32,
+          ),
           const SizedBox(height: 8),
           const Text(
             'Adding to Wallet',
@@ -323,8 +328,11 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
                   color: const Color(0xFFF7F8FC),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.credit_card,
-                    color: Color(0xFF1A1A1A), size: 22),
+                child: const Icon(
+                  Icons.credit_card,
+                  color: Color(0xFF1A1A1A),
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -341,14 +349,16 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
                     ),
                     const Text(
                       'Saved card',
-                      style: TextStyle(
-                          fontSize: 12, color: Color(0xFF9B9B9B)),
+                      style: TextStyle(fontSize: 12, color: Color(0xFF9B9B9B)),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.check_circle,
-                  color: Color(0xFF43A047), size: 22),
+              const Icon(
+                Icons.check_circle,
+                color: Color(0xFF43A047),
+                size: 22,
+              ),
             ],
           ),
         ),
@@ -419,8 +429,7 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
               cursorColor: _pink,
             ),
             onCardChanged: (details) {
-              setState(
-                  () => _cardComplete = details?.complete ?? false);
+              setState(() => _cardComplete = details?.complete ?? false);
             },
           ),
         ),
@@ -453,7 +462,8 @@ class _TopUpPaymentPageState extends State<TopUpPaymentPage> {
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(27)),
+                    borderRadius: BorderRadius.circular(27),
+                  ),
                 ),
                 child: Text(
                   'PAY  Rs. ${widget.amount.toStringAsFixed(0)}',
